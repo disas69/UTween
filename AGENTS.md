@@ -103,7 +103,7 @@ UTween/
 
 - **`int64` for IDs**: Unreal reflection (`UPROPERTY`) does not support `uint64`. `FTweenId` uses `int64` to maintain full Blueprint accessibility.
 - **RTTI-Free Type Safety**: Unreal modules compile with `-fno-rtti`. Type-safe downcasting in `TTweenInstance<T>` is implemented using the sentinel address pattern (`TTweenValueTypeTag<T>::Sentinel`).
-- **Shortest-Path Rotator Interpolation**: `UTweenLerp::LerpRotator` performs quaternion spherical linear interpolation (`FQuat::Slerp`) converted back to `FRotator` to prevent 360-degree rotation flips.
+- **Hybrid Rotator Interpolation**: `UTweenLerp::LerpRotator` uses quaternion spherical linear interpolation (`FQuat::Slerp`) for sub-360-degree shortest-path orientations, and falls back to Euler interpolation when any axis delta indicates an intentional 360-degree or multi-turn spin (`|delta| >= 360` or identical start/end quaternions) to prevent 360-degree rotations from collapsing into 0-degree stationary degenerate paths.
 - **Module Name Separation**: To prevent module name collision in UnrealBuildTool (since the project is named `UTween`), the host project module is named `UTweenProject`, and the plugin module is named `UTween`.
 - **Tick Snapshotting**: The subsystem snapshots the active collection count at the start of `Tick()`. New tweens registered inside callbacks are deferred to the next tick to prevent iterator invalidation.
 - **Deinitialization Sequence**: On subsystem shutdown, sequences are killed first so their `OnKill` callbacks fire while still holding their child tweens, followed by clearing standalone tweens.

@@ -131,12 +131,12 @@ void AUTweenDemoManager::Demo0_VerticalBounce(AStaticMeshActor* Shape, const FVe
         .SetLoops(-1, ETweenLoopMode::Yoyo);
 }
 
-// 1 — Continuous yaw spin: UTWEEN_ROTATION + infinite restart.
+// 1 — Continuous yaw spin: UTWEEN_ROTATION + infinite yoyo.
 void AUTweenDemoManager::Demo1_ContinuousSpin(AStaticMeshActor* Shape)
 {
     UTWEEN_ROTATION(Shape, FRotator::ZeroRotator, FRotator(0.f, 360.f, 0.f), 2.0f)
-        .SetEase(ETweenEase::Linear)
-        .SetLoops(-1, ETweenLoopMode::Restart);
+        .SetEase(ETweenEase::InOutQuad)
+        .SetLoops(-1, ETweenLoopMode::Yoyo);
 }
 
 // 2 — Scale pulse: UTWEEN_SCALE + yoyo + InOutSine.

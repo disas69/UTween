@@ -157,11 +157,42 @@ namespace UTweenDefaults
 
 namespace UTweenLerp
 {
-    /** Shortest-path rotator interpolation via quaternion slerp. */
+    /**
+     * Rotator interpolation supporting both shortest-path orientation and multi-turn spins.
+     * When any component difference indicates an intentional multi-turn or 360-degree spin
+     * (|delta| >= 360 deg), or when start and end are identical in quaternion space (which
+     * would otherwise cause Slerp to evaluate to a degenerate 0-degree motion), component-wise
+     * Euler interpolation is used. Otherwise, spherical linear interpolation (quaternion slerp)
+     * is used for shortest-path orientation.
+     */
     FORCEINLINE FRotator LerpRotator(const FRotator& A, const FRotator& B, float Alpha)
     {
+        const float DeltaPitch = FMath::Abs(B.Pitch - A.Pitch);
+        const float DeltaYaw   = FMath::Abs(B.Yaw - A.Yaw);
+        const float DeltaRoll  = FMath::Abs(B.Roll - A.Roll);
+
+        if (DeltaPitch >= 360.f || DeltaYaw >= 360.f || DeltaRoll >= 360.f)
+        {
+            return FRotator(
+                FMath::Lerp(A.Pitch, B.Pitch, Alpha),
+                FMath::Lerp(A.Yaw, B.Yaw, Alpha),
+                FMath::Lerp(A.Roll, B.Roll, Alpha)
+            );
+        }
+
         const FQuat QA = A.Quaternion();
         const FQuat QB = B.Quaternion();
+
+        if (QA.Equals(QB, 1e-4f) || QA.Equals(-QB, 1e-4f))
+        {
+            return FRotator(
+                FMath::Lerp(A.Pitch, B.Pitch, Alpha),
+                FMath::Lerp(A.Yaw, B.Yaw, Alpha),
+                FMath::Lerp(A.Roll, B.Roll, Alpha)
+            );
+        }
+
         return FQuat::Slerp(QA, QB, Alpha).Rotator();
     }
 }
+

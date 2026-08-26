@@ -111,6 +111,62 @@ bool FUTweenVectorInterpolationTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenRotator360SpinTest,
+    "UTween.Tween.Rotator360ContinuousSpin", UTWEEN_TEST_FLAGS)
+
+bool FUTweenRotator360SpinTest::RunTest(const FString& Parameters)
+{
+    FRotator Captured = FRotator::ZeroRotator;
+    auto I = MakeRotatorTween(FRotator::ZeroRotator, FRotator(0.f, 360.f, 0.f), 1.f, Captured);
+
+    I->Tick(0.5f);
+    TestTrue(TEXT("Midpoint 180 deg"), FMath::IsNearlyEqual(Captured.Yaw, 180.f, 1e-2f));
+
+    I->Tick(0.5f);
+    TestTrue(TEXT("Full 360 deg spin"), FMath::IsNearlyEqual(Captured.Yaw, 360.f, 1e-2f));
+    TestTrue(TEXT("Completed"), I->IsComplete());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenRotatorYoyoLoopTest,
+    "UTween.Tween.RotatorYoyoLoop", UTWEEN_TEST_FLAGS)
+
+bool FUTweenRotatorYoyoLoopTest::RunTest(const FString& Parameters)
+{
+    FRotator Captured = FRotator::ZeroRotator;
+    auto I = MakeRotatorTween(FRotator::ZeroRotator, FRotator(0.f, 360.f, 0.f), 1.f, Captured);
+    I->LoopMode = ETweenLoopMode::Yoyo;
+    I->LoopCount = 1;
+
+    I->Tick(1.f);
+    TestTrue(TEXT("End of cycle 1 (360 deg)"), FMath::IsNearlyEqual(Captured.Yaw, 360.f, 1e-2f));
+
+    I->Tick(0.5f);
+    TestTrue(TEXT("Mid of yoyo reverse cycle (180 deg)"), FMath::IsNearlyEqual(Captured.Yaw, 180.f, 1e-2f));
+
+    I->Tick(0.5f);
+    TestTrue(TEXT("End of yoyo reverse cycle (0 deg)"), FMath::IsNearlyEqual(Captured.Yaw, 0.f, 1e-2f));
+    TestTrue(TEXT("Completed after yoyo"), I->IsComplete());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenRotator720MultiTurnTest,
+    "UTween.Tween.Rotator720MultiTurn", UTWEEN_TEST_FLAGS)
+
+bool FUTweenRotator720MultiTurnTest::RunTest(const FString& Parameters)
+{
+    FRotator Captured = FRotator::ZeroRotator;
+    auto I = MakeRotatorTween(FRotator::ZeroRotator, FRotator(720.f, 0.f, 0.f), 1.f, Captured);
+
+    I->Tick(0.5f);
+    TestTrue(TEXT("Midpoint 360 deg pitch"), FMath::IsNearlyEqual(Captured.Pitch, 360.f, 1e-2f));
+
+    I->Tick(0.5f);
+    TestTrue(TEXT("Full 720 deg pitch"), FMath::IsNearlyEqual(Captured.Pitch, 720.f, 1e-2f));
+    TestTrue(TEXT("Completed"), I->IsComplete());
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenEaseOutQuadTest,
     "UTween.Tween.EaseOutQuadDiffersFromLinear", UTWEEN_TEST_FLAGS)
 
