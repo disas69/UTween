@@ -156,6 +156,7 @@ FTweenHandle UTween::CreateTargetTween(
     Instance->EndValue = To;
     Instance->Duration = FMath::Max(0.f, Duration);
     Instance->BoundTarget = Target;
+    Instance->bHasTarget = (Target != nullptr);
     Instance->DebugName = FName(MethodName);
     Instance->GetterFunc = MoveTemp(Getter);
     Instance->ApplyFunc = MoveTemp(Apply);

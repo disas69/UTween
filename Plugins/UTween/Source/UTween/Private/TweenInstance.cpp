@@ -16,11 +16,15 @@ void FTweenInstanceBase::Tick(float DeltaTime)
 
     if (DelayElapsed < Delay)
     {
-        DelayElapsed += DeltaTime;
-        if (DelayElapsed < Delay)
+        const float RemainingDelay = Delay - DelayElapsed;
+        if (DeltaTime < RemainingDelay)
         {
+            DelayElapsed += DeltaTime;
             return;
         }
+
+        DelayElapsed = Delay;
+        DeltaTime -= RemainingDelay;
     }
 
     if (!bStartFired)
@@ -72,7 +76,8 @@ void FTweenInstanceBase::HandleLoopOrComplete()
     }
 
     ++CurrentLoop;
-    Elapsed = 0.f;
+    const float SafeDuration = FMath::Max(Duration, KINDA_SMALL_NUMBER);
+    Elapsed = FMath::Max(0.f, Elapsed - SafeDuration);
 
     if (LoopMode == ETweenLoopMode::Yoyo)
     {
@@ -85,6 +90,19 @@ void FTweenInstanceBase::Complete()
     if (State == ETweenState::Completed || State == ETweenState::Killed)
     {
         return;
+    }
+
+    if (!bStartFired)
+    {
+        if (!bUseFrom)
+        {
+            CaptureStartValue();
+        }
+        if (bIsRelative)
+        {
+            ApplyRelativeOffset();
+        }
+        bStartFired = true;
     }
 
     EvaluateAndApply(1.f);
@@ -136,8 +154,33 @@ void FTweenInstanceBase::Resume()
     }
 }
 
+void FTweenInstanceBase::Play()
+{
+    if (State != ETweenState::Killed)
+    {
+        State = ETweenState::Playing;
+    }
+}
+
+void FTweenInstanceBase::Restart()
+{
+    if (State == ETweenState::Killed)
+    {
+        return;
+    }
+
+    Elapsed = 0.f;
+    DelayElapsed = 0.f;
+    CurrentLoop = 0;
+    bStartFired = false;
+    State = ETweenState::Playing;
+}
+
 bool FTweenInstanceBase::IsTargetValid() const
 {
-    // Default-constructed TWeakObjectPtr is not stale, so unbound tweens pass.
-    return !BoundTarget.IsStale();
+    if (!bHasTarget)
+    {
+        return true;
+    }
+    return BoundTarget.IsValid();
 }

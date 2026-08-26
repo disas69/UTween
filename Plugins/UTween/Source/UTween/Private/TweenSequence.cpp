@@ -61,12 +61,13 @@ void FTweenSequence::Tick(float DeltaTime)
         return;
     }
 
-    if (bBoundTargetExplicit && BoundTarget.IsStale())
+    if (bBoundTargetExplicit && !BoundTarget.IsValid())
     {
         Kill();
         return;
     }
 
+    const float PrevCursor = Cursor;
     Cursor += DeltaTime;
 
     for (FSequenceAction& Action : Actions)
@@ -75,6 +76,8 @@ void FTweenSequence::Tick(float DeltaTime)
         {
             continue;
         }
+
+        const float ActionEnd = Action.StartTime + Action.Duration;
 
         if (!Action.bStarted && Cursor >= Action.StartTime)
         {
@@ -100,9 +103,21 @@ void FTweenSequence::Tick(float DeltaTime)
         {
             if (Action.TweenInstance.IsValid())
             {
-                Action.TweenInstance->Tick(DeltaTime);
-                if (Action.TweenInstance->IsComplete() || Action.TweenInstance->IsKilled())
+                const float SliceStart = FMath::Max(PrevCursor, Action.StartTime);
+                const float SliceEnd = FMath::Min(Cursor, ActionEnd);
+                const float OverlapDelta = FMath::Max(0.f, SliceEnd - SliceStart);
+
+                if (OverlapDelta > 0.f)
                 {
+                    Action.TweenInstance->Tick(OverlapDelta);
+                }
+
+                if (Action.TweenInstance->IsComplete() || Action.TweenInstance->IsKilled() || Cursor >= ActionEnd)
+                {
+                    if (!Action.TweenInstance->IsComplete() && !Action.TweenInstance->IsKilled())
+                    {
+                        Action.TweenInstance->Complete();
+                    }
                     Action.bComplete = true;
                 }
             }
@@ -112,7 +127,7 @@ void FTweenSequence::Tick(float DeltaTime)
             }
         }
 
-        if (Action.Type == ESequenceActionType::Interval && Cursor >= Action.StartTime + Action.Duration)
+        if (Action.Type == ESequenceActionType::Interval && Cursor >= ActionEnd)
         {
             Action.bComplete = true;
         }
@@ -157,7 +172,8 @@ void FTweenSequence::HandleCompletion()
 
 void FTweenSequence::ResetForLoop()
 {
-    Cursor = 0.f;
+    const float SafeTotalDuration = FMath::Max(TotalDuration, KINDA_SMALL_NUMBER);
+    Cursor = FMath::Max(0.f, Cursor - SafeTotalDuration);
     const bool bYoyo = (LoopMode == ETweenLoopMode::Yoyo);
 
     if (bYoyo)

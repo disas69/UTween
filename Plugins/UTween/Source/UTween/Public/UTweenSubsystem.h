@@ -50,11 +50,13 @@ public:
 
     int32 GetActiveTweenCount() const;
     int32 GetActiveSequenceCount() const;
-
-private:
+    /** Ticks all active tweens and sequences. Called by FTSTicker, or directly by automation tests. */
     void Tick(float DeltaTime);
 
+private:
     FTSTicker::FDelegateHandle TickDelegateHandle;
+
+    bool bIsTicking = false;
 
     TArray<TSharedPtr<FTweenInstanceBase>> ActiveTweens;
     TArray<TSharedPtr<FTweenSequence>> ActiveSequences;

@@ -2,6 +2,9 @@
 #include "Misc/AutomationTest.h"
 #include "TweenInstance.h"
 #include "TweenSequence.h"
+#include "TweenHandle.h"
+#include "UTweenSubsystem.h"
+#include "Engine/GameInstance.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -387,11 +390,16 @@ bool FUTweenSequenceAppendSequentialTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("T1 at 50%"), A, 50.f, FloatTolerance);
     TestEqual(TEXT("T2 not started"), B, 0.f, FloatTolerance);
 
-    // Cursor lands exactly at T1 end; T1 completes and T2 starts + ticks 0.5 in same frame.
+    // Cursor reaches T1 end at 1.0s: T1 completes, T2 is at start position (0.0s elapsed in T2).
     Seq->Tick(0.5f);
     TestEqual(TEXT("T1 complete"), A, 100.f, FloatTolerance);
-    TestEqual(TEXT("T2 started and advanced"), B, 50.f, FloatTolerance);
+    TestEqual(TEXT("T2 started at 0%"), B, 0.f, FloatTolerance);
 
+    // Cursor reaches 1.5s: T2 ticks 0.5s (50%).
+    Seq->Tick(0.5f);
+    TestEqual(TEXT("T2 at 50%"), B, 50.f, FloatTolerance);
+
+    // Cursor reaches 2.0s: T2 completes (100%), sequence completes.
     Seq->Tick(0.5f);
     TestEqual(TEXT("T2 complete"), B, 100.f, FloatTolerance);
     TestTrue(TEXT("Sequence completes"), Seq->IsComplete());
@@ -442,9 +450,9 @@ bool FUTweenSequenceIntervalTest::RunTest(const FString& Parameters)
     Seq->Tick(0.2f);
     TestEqual(TEXT("Still mid-interval"), A, 0.f, FloatTolerance);
 
-    // Cursor crosses interval end at Tick(0.05); tween also ticks 0.05 in same frame.
+    // Cursor crosses interval end at 0.5s; of the 0.55s delta, 0.05s finishes interval and 0.50s ticks tween.
     Seq->Tick(0.55f);
-    TestEqual(TEXT("Tween started after interval"), A, 55.f, FloatTolerance);
+    TestEqual(TEXT("Tween started after interval (ticked 0.50s)"), A, 50.f, FloatTolerance);
     return true;
 }
 
@@ -562,6 +570,176 @@ bool FUTweenSequencePauseResumeTest::RunTest(const FString& Parameters)
     Seq->Resume();
     Seq->Tick(0.25f);
     TestEqual(TEXT("Resumed progress"), A, 50.f, FloatTolerance);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenDelayOvershootTest,
+    "UTween.Tween.DelayOvershootPreserved", UTWEEN_TEST_FLAGS)
+
+bool FUTweenDelayOvershootTest::RunTest(const FString& Parameters)
+{
+    float Captured = 0.f;
+    auto I = MakeFloatTween(0.f, 100.f, 1.f, Captured);
+    I->Delay = 0.5f;
+
+    // Frame of 0.75s: 0.5s consumed by delay, remaining 0.25s consumed by tween (progress = 25%)
+    I->Tick(0.75f);
+    TestEqual(TEXT("Progress after delay overshoot"), Captured, 25.f, FloatTolerance);
+    TestEqual(TEXT("Elapsed time equals leftover delta"), I->Elapsed, 0.25f, FloatTolerance);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenLoopOvershootPreservedTest,
+    "UTween.Tween.LoopOvershootPreserved", UTWEEN_TEST_FLAGS)
+
+bool FUTweenLoopOvershootPreservedTest::RunTest(const FString& Parameters)
+{
+    float Captured = 0.f;
+    auto I = MakeFloatTween(0.f, 100.f, 1.f, Captured);
+    I->LoopMode = ETweenLoopMode::Restart;
+    I->LoopCount = 1;
+
+    // Tick 1.1s: completes cycle 1 (duration 1.0) and carries 0.1s over into cycle 2
+    I->Tick(1.1f);
+    TestEqual(TEXT("Elapsed preserves 0.1s overshoot in second cycle"), I->Elapsed, 0.1f, FloatTolerance);
+
+    // Next tick of 0.1s advances elapsed to 0.2s (20% progress)
+    I->Tick(0.1f);
+    TestEqual(TEXT("Elapsed is 0.2s"), I->Elapsed, 0.2f, FloatTolerance);
+    TestEqual(TEXT("Value reflects 20% progress"), Captured, 20.f, FloatTolerance);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenPlayRestartCompleteTest,
+    "UTween.Tween.PlayRestartAndComplete", UTWEEN_TEST_FLAGS)
+
+bool FUTweenPlayRestartCompleteTest::RunTest(const FString& Parameters)
+{
+    float Captured = 0.f;
+    auto I = MakeFloatTween(0.f, 100.f, 1.f, Captured);
+    FTweenHandle Handle(I);
+
+    Handle.Complete();
+    TestTrue(TEXT("Complete transitions to completed"), I->IsComplete());
+    TestEqual(TEXT("Complete applies 100%"), Captured, 100.f, FloatTolerance);
+
+    Handle.Restart();
+    TestTrue(TEXT("Restart transitions to playing"), Handle.IsPlaying());
+    TestEqual(TEXT("Restart resets elapsed"), I->Elapsed, 0.f, FloatTolerance);
+
+    I->Tick(0.5f);
+    TestEqual(TEXT("Ticks normally after restart"), Captured, 50.f, FloatTolerance);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenTargetDestructionTest,
+    "UTween.Tween.TargetDestructionKillsTween", UTWEEN_TEST_FLAGS)
+
+bool FUTweenTargetDestructionTest::RunTest(const FString& Parameters)
+{
+    float Captured = 0.f;
+    auto I = MakeFloatTween(0.f, 100.f, 1.f, Captured);
+
+    UGameInstance* Dummy = NewObject<UGameInstance>();
+    I->BoundTarget = Dummy;
+    I->bHasTarget = true;
+
+    TestTrue(TEXT("Target valid initially"), I->IsTargetValid());
+    I->Tick(0.25f);
+    TestEqual(TEXT("25% evaluated"), Captured, 25.f, FloatTolerance);
+
+    I->BoundTarget.Reset();
+    TestFalse(TEXT("Target invalid when cleared"), I->IsTargetValid());
+
+    I->Tick(0.25f);
+    TestTrue(TEXT("Tween killed due to invalid target"), I->IsKilled());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenSequenceFrameSpikeSlicesTest,
+    "UTween.Sequence.FrameSpikeSlicesAccurately", UTWEEN_TEST_FLAGS)
+
+bool FUTweenSequenceFrameSpikeSlicesTest::RunTest(const FString& Parameters)
+{
+    float A = 0.f;
+    float B = 0.f;
+    auto T1 = MakeFloatTween(0.f, 100.f, 0.5f, A);
+    auto T2 = MakeFloatTween(0.f, 100.f, 0.5f, B);
+
+    TSharedPtr<FTweenSequence> Seq = MakeShared<FTweenSequence>();
+    Seq->AddTweenAction(T1, false);
+    Seq->AddTweenAction(T2, false);
+    Seq->State = ETweenState::Playing;
+
+    // A single frame spike of 0.75s across TotalDuration 1.0s:
+    // T1 (0 to 0.5) should receive exactly 0.5s and complete.
+    // T2 (0.5 to 1.0) should receive exactly 0.25s (Cursor 0.75 - StartTime 0.5).
+    Seq->Tick(0.75f);
+    TestEqual(TEXT("T1 receives exactly its slice (0.5s)"), A, 100.f, FloatTolerance);
+    TestTrue(TEXT("T1 marked complete"), T1->IsComplete());
+    TestEqual(TEXT("T2 receives remaining slice (0.25s / 50%)"), B, 50.f, FloatTolerance);
+    TestFalse(TEXT("T2 not complete"), T2->IsComplete());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenSubsystemSequenceControlsTest,
+    "UTween.Subsystem.SequencesAffectedByControls", UTWEEN_TEST_FLAGS)
+
+bool FUTweenSubsystemSequenceControlsTest::RunTest(const FString& Parameters)
+{
+    UGameInstance* GI = NewObject<UGameInstance>();
+    UTweenSubsystem* Subsystem = NewObject<UTweenSubsystem>(GI);
+    TestNotNull(TEXT("Subsystem created"), Subsystem);
+
+    TSharedPtr<FTweenSequence> Seq = MakeShared<FTweenSequence>();
+    Seq->Tag = FTweenTag(TEXT("TestTag"));
+    Seq->Play();
+    Subsystem->RegisterSequence(Seq);
+
+    Subsystem->PauseByTag(FTweenTag(TEXT("TestTag")));
+    TestEqual(TEXT("Sequence paused by tag"), Seq->State, ETweenState::Paused);
+
+    Subsystem->ResumeByTag(FTweenTag(TEXT("TestTag")));
+    TestEqual(TEXT("Sequence resumed by tag"), Seq->State, ETweenState::Playing);
+
+    Subsystem->PauseAll();
+    TestEqual(TEXT("Sequence paused by PauseAll"), Seq->State, ETweenState::Paused);
+
+    Subsystem->ResumeAll();
+    TestEqual(TEXT("Sequence resumed by ResumeAll"), Seq->State, ETweenState::Playing);
+
+    Subsystem->KillAll();
+    TestTrue(TEXT("Sequence killed by KillAll"), Seq->IsKilled());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenSubsystemKillAllInCallbackTest,
+    "UTween.Subsystem.KillAllInsideCallbackDoesNotCrash", UTWEEN_TEST_FLAGS)
+
+bool FUTweenSubsystemKillAllInCallbackTest::RunTest(const FString& Parameters)
+{
+    UGameInstance* GI = NewObject<UGameInstance>();
+    UTweenSubsystem* Subsystem = NewObject<UTweenSubsystem>(GI);
+    TestNotNull(TEXT("Subsystem created"), Subsystem);
+
+    float A = 0.f;
+    float B = 0.f;
+    auto T1 = MakeFloatTween(0.f, 100.f, 1.f, A);
+    auto T2 = MakeFloatTween(0.f, 100.f, 1.f, B);
+
+    T1->OnUpdateCallback = [Subsystem]
+    {
+        Subsystem->KillAll();
+    };
+
+    Subsystem->RegisterTween(T1);
+    Subsystem->RegisterTween(T2);
+
+    Subsystem->Tick(0.1f);
+
+    TestTrue(TEXT("T1 killed"), T1->IsKilled());
+    TestTrue(TEXT("T2 killed"), T2->IsKilled());
+    TestEqual(TEXT("No active tweens remain"), Subsystem->GetActiveTweenCount(), 0);
     return true;
 }
 

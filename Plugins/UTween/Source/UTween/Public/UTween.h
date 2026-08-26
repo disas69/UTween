@@ -150,6 +150,7 @@ FTweenHandle UTween::ValueMember(TObj* Obj, TValue From, TValue To, float Durati
     {
         TWeakObjectPtr<TObj> Weak(Obj);
         Instance->BoundTarget = Obj;
+        Instance->bHasTarget = (Obj != nullptr);
 
         if constexpr (bIsMember)
         {

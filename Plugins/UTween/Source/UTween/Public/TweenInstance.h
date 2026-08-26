@@ -63,6 +63,7 @@ public:
     TFunction<void()> OnKillCallback;
 
     TWeakObjectPtr<UObject> BoundTarget;
+    bool bHasTarget = false;
 
     uint64 ValueTypeHash = 0;
 
@@ -71,6 +72,8 @@ public:
     void Pause();
     void Resume();
     void Complete();
+    void Play();
+    void Restart();
 
     bool IsComplete() const { return State == ETweenState::Completed; }
     bool IsKilled() const { return State == ETweenState::Killed; }

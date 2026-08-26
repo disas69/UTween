@@ -166,6 +166,22 @@ FTweenHandle& FTweenHandle::OnKill(TFunction<void()> Callback)
     return *this;
 }
 
+void FTweenHandle::Play()
+{
+    if (FTweenInstanceBase* Inst = Pin())
+    {
+        Inst->Play();
+    }
+}
+
+void FTweenHandle::Restart()
+{
+    if (FTweenInstanceBase* Inst = Pin())
+    {
+        Inst->Restart();
+    }
+}
+
 void FTweenHandle::Pause()
 {
     if (FTweenInstanceBase* Inst = Pin())
@@ -179,6 +195,14 @@ void FTweenHandle::Resume()
     if (FTweenInstanceBase* Inst = Pin())
     {
         Inst->Resume();
+    }
+}
+
+void FTweenHandle::Complete()
+{
+    if (FTweenInstanceBase* Inst = Pin())
+    {
+        Inst->Complete();
     }
 }
 

@@ -116,7 +116,14 @@ TSharedPtr<FTweenInstanceBase> UTweenSubsystem::DetachTween(FTweenId Id)
         if (Tween.IsValid() && Tween->Id == Id)
         {
             TSharedPtr<FTweenInstanceBase> Detached = Tween;
-            ActiveTweens.RemoveAt(Index);
+            if (bIsTicking)
+            {
+                ActiveTweens[Index] = nullptr;
+            }
+            else
+            {
+                ActiveTweens.RemoveAt(Index);
+            }
             return Detached;
         }
     }
@@ -148,6 +155,13 @@ void UTweenSubsystem::PauseAll()
             Tween->Pause();
         }
     }
+    for (const TSharedPtr<FTweenSequence>& Seq : ActiveSequences)
+    {
+        if (Seq.IsValid())
+        {
+            Seq->Pause();
+        }
+    }
 }
 
 void UTweenSubsystem::ResumeAll()
@@ -157,6 +171,13 @@ void UTweenSubsystem::ResumeAll()
         if (Tween.IsValid())
         {
             Tween->Resume();
+        }
+    }
+    for (const TSharedPtr<FTweenSequence>& Seq : ActiveSequences)
+    {
+        if (Seq.IsValid())
+        {
+            Seq->Resume();
         }
     }
 }
@@ -170,7 +191,19 @@ void UTweenSubsystem::KillAll()
             Tween->Kill();
         }
     }
-    ActiveTweens.Reset();
+    for (const TSharedPtr<FTweenSequence>& Seq : ActiveSequences)
+    {
+        if (Seq.IsValid())
+        {
+            Seq->Kill();
+        }
+    }
+
+    if (!bIsTicking)
+    {
+        ActiveTweens.Reset();
+        ActiveSequences.Reset();
+    }
 }
 
 void UTweenSubsystem::PauseByTag(FTweenTag Tag)
@@ -180,6 +213,13 @@ void UTweenSubsystem::PauseByTag(FTweenTag Tag)
         if (Tween.IsValid() && Tween->Tag == Tag)
         {
             Tween->Pause();
+        }
+    }
+    for (const TSharedPtr<FTweenSequence>& Seq : ActiveSequences)
+    {
+        if (Seq.IsValid() && Seq->Tag == Tag)
+        {
+            Seq->Pause();
         }
     }
 }
@@ -193,6 +233,13 @@ void UTweenSubsystem::ResumeByTag(FTweenTag Tag)
             Tween->Resume();
         }
     }
+    for (const TSharedPtr<FTweenSequence>& Seq : ActiveSequences)
+    {
+        if (Seq.IsValid() && Seq->Tag == Tag)
+        {
+            Seq->Resume();
+        }
+    }
 }
 
 void UTweenSubsystem::KillByTag(FTweenTag Tag)
@@ -202,6 +249,13 @@ void UTweenSubsystem::KillByTag(FTweenTag Tag)
         if (Tween.IsValid() && Tween->Tag == Tag)
         {
             Tween->Kill();
+        }
+    }
+    for (const TSharedPtr<FTweenSequence>& Seq : ActiveSequences)
+    {
+        if (Seq.IsValid() && Seq->Tag == Tag)
+        {
+            Seq->Kill();
         }
     }
 }
@@ -253,6 +307,8 @@ FTweenSequenceHandle UTweenSubsystem::FindSequenceById(FTweenId Id) const
 void UTweenSubsystem::Tick(float DeltaTime)
 {
     SCOPE_CYCLE_COUNTER(STAT_UTween_Tick);
+
+    TGuardValue<bool> TickingGuard(bIsTicking, true);
 
     // FTSTicker delta is world-dilated (GameTime); FApp::GetDeltaTime() is unscaled (RealTime).
     const float GameDelta = DeltaTime;

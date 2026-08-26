@@ -35,8 +35,11 @@ struct UTWEEN_API FTweenHandle
     FTweenHandle& OnComplete(TFunction<void()> Callback);
     FTweenHandle& OnKill(TFunction<void()> Callback);
 
+    void Play();
+    void Restart();
     void Pause();
     void Resume();
+    void Complete();
     void Kill();
 
     bool IsValid() const;
