@@ -5,7 +5,7 @@
 	"Description": "",
 	"Modules": [
 		{
-			"Name": "UTween",
+			"Name": "UTweenProject",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
 		}
@@ -17,6 +17,10 @@
 			"TargetAllowList": [
 				"Editor"
 			]
+		},
+		{
+			"Name": "UTween",
+			"Enabled": true
 		}
 	]
 }
