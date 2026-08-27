@@ -69,6 +69,7 @@ public:
     void Complete();
     void Play();
     void Restart();
+    virtual void ResetForPool();
 
     bool IsComplete() const { return State == ETweenState::Completed; }
     bool IsKilled() const { return State == ETweenState::Killed; }
@@ -107,6 +108,17 @@ public:
     TTweenInstance()
     {
         ValueType = TTweenValueTypeTraits<T>::ValueType;
+    }
+
+    virtual void ResetForPool() override
+    {
+        FTweenInstanceBase::ResetForPool();
+        StartValue = T{};
+        EndValue = T{};
+        CurrentValue = T{};
+        LerpFunc = nullptr;
+        ApplyFunc = nullptr;
+        GetterFunc = nullptr;
     }
 
 protected:

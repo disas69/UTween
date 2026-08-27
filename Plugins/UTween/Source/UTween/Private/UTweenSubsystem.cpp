@@ -18,6 +18,11 @@ void UTweenSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
 
+    ActiveTweens.Reserve(256);
+    ActiveSequences.Reserve(64);
+    FloatPool.Reserve(128);
+    VectorPool.Reserve(64);
+
     TickDelegateHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(
                                                                   [this](float DeltaTime) -> bool
                                                                   {
@@ -48,6 +53,7 @@ void UTweenSubsystem::Deinitialize()
     ActiveSequences.Reset();
 
     KillAll();
+    EmptyPools();
 
     UE_LOG(LogUTween, Log, TEXT("UTweenSubsystem deinitialized"));
 
@@ -227,6 +233,10 @@ void UTweenSubsystem::KillAll()
 
     if (!bIsTicking)
     {
+        for (const TSharedPtr<FTweenInstanceBase>& Tween : ActiveTweens)
+        {
+            RecycleTween(Tween);
+        }
         ActiveTweens.Reset();
         ActiveSequences.Reset();
     }
@@ -395,10 +405,18 @@ void UTweenSubsystem::Tick(float DeltaTime)
 
     {
         TRACE_CPUPROFILER_EVENT_SCOPE(UTween_Cleanup);
-        ActiveTweens.RemoveAll([](const TSharedPtr<FTweenInstanceBase>& Tween)
+        for (int32 Index = ActiveTweens.Num() - 1; Index >= 0; --Index)
+        {
+            FTweenInstanceBase* Tween = ActiveTweens[Index].Get();
+            if (!Tween || Tween->State == ETweenState::Killed)
             {
-                return !Tween.IsValid() || Tween->State == ETweenState::Killed;
-            });
+                if (Tween)
+                {
+                    RecycleTween(ActiveTweens[Index]);
+                }
+                ActiveTweens.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+            }
+        }
 
         ActiveSequences.RemoveAll([](const TSharedPtr<FTweenSequence>& Seq)
             {
@@ -409,3 +427,136 @@ void UTweenSubsystem::Tick(float DeltaTime)
     SET_DWORD_STAT(STAT_UTween_ActiveTweens, ActiveTweens.Num());
     SET_DWORD_STAT(STAT_UTween_ActiveSequences, ActiveSequences.Num());
 }
+
+void UTweenSubsystem::EmptyPools()
+{
+    FloatPool.Reset();
+    Vector2DPool.Reset();
+    VectorPool.Reset();
+    RotatorPool.Reset();
+    LinearColorPool.Reset();
+}
+
+void UTweenSubsystem::RecycleTween(const TSharedPtr<FTweenInstanceBase>& Instance)
+{
+    if (!Instance.IsValid())
+    {
+        return;
+    }
+
+    Instance->ResetForPool();
+
+    constexpr int32 MaxPoolCapacity = 16384;
+
+    switch (Instance->ValueType)
+    {
+    case ETweenValueType::Float:
+        if (FloatPool.Num() < MaxPoolCapacity)
+        {
+            FloatPool.Add(StaticCastSharedPtr<TTweenInstance<float>>(Instance));
+        }
+        break;
+    case ETweenValueType::Vector2D:
+        if (Vector2DPool.Num() < MaxPoolCapacity)
+        {
+            Vector2DPool.Add(StaticCastSharedPtr<TTweenInstance<FVector2D>>(Instance));
+        }
+        break;
+    case ETweenValueType::Vector:
+        if (VectorPool.Num() < MaxPoolCapacity)
+        {
+            VectorPool.Add(StaticCastSharedPtr<TTweenInstance<FVector>>(Instance));
+        }
+        break;
+    case ETweenValueType::Rotator:
+        if (RotatorPool.Num() < MaxPoolCapacity)
+        {
+            RotatorPool.Add(StaticCastSharedPtr<TTweenInstance<FRotator>>(Instance));
+        }
+        break;
+    case ETweenValueType::LinearColor:
+        if (LinearColorPool.Num() < MaxPoolCapacity)
+        {
+            LinearColorPool.Add(StaticCastSharedPtr<TTweenInstance<FLinearColor>>(Instance));
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+template <>
+UTWEEN_API TSharedPtr<TTweenInstance<float>> UTweenSubsystem::AcquireTween<float>()
+{
+    if (FloatPool.Num() > 0)
+    {
+        TSharedPtr<TTweenInstance<float>> Pooled = FloatPool.Pop(EAllowShrinking::No);
+        Pooled->Id = FTweenId::Generate();
+        Pooled->State = ETweenState::Pending;
+        return Pooled;
+    }
+    TSharedPtr<TTweenInstance<float>> NewInst = MakeShared<TTweenInstance<float>>();
+    NewInst->Id = FTweenId::Generate();
+    return NewInst;
+}
+
+template <>
+UTWEEN_API TSharedPtr<TTweenInstance<FVector2D>> UTweenSubsystem::AcquireTween<FVector2D>()
+{
+    if (Vector2DPool.Num() > 0)
+    {
+        TSharedPtr<TTweenInstance<FVector2D>> Pooled = Vector2DPool.Pop(EAllowShrinking::No);
+        Pooled->Id = FTweenId::Generate();
+        Pooled->State = ETweenState::Pending;
+        return Pooled;
+    }
+    TSharedPtr<TTweenInstance<FVector2D>> NewInst = MakeShared<TTweenInstance<FVector2D>>();
+    NewInst->Id = FTweenId::Generate();
+    return NewInst;
+}
+
+template <>
+UTWEEN_API TSharedPtr<TTweenInstance<FVector>> UTweenSubsystem::AcquireTween<FVector>()
+{
+    if (VectorPool.Num() > 0)
+    {
+        TSharedPtr<TTweenInstance<FVector>> Pooled = VectorPool.Pop(EAllowShrinking::No);
+        Pooled->Id = FTweenId::Generate();
+        Pooled->State = ETweenState::Pending;
+        return Pooled;
+    }
+    TSharedPtr<TTweenInstance<FVector>> NewInst = MakeShared<TTweenInstance<FVector>>();
+    NewInst->Id = FTweenId::Generate();
+    return NewInst;
+}
+
+template <>
+UTWEEN_API TSharedPtr<TTweenInstance<FRotator>> UTweenSubsystem::AcquireTween<FRotator>()
+{
+    if (RotatorPool.Num() > 0)
+    {
+        TSharedPtr<TTweenInstance<FRotator>> Pooled = RotatorPool.Pop(EAllowShrinking::No);
+        Pooled->Id = FTweenId::Generate();
+        Pooled->State = ETweenState::Pending;
+        return Pooled;
+    }
+    TSharedPtr<TTweenInstance<FRotator>> NewInst = MakeShared<TTweenInstance<FRotator>>();
+    NewInst->Id = FTweenId::Generate();
+    return NewInst;
+}
+
+template <>
+UTWEEN_API TSharedPtr<TTweenInstance<FLinearColor>> UTweenSubsystem::AcquireTween<FLinearColor>()
+{
+    if (LinearColorPool.Num() > 0)
+    {
+        TSharedPtr<TTweenInstance<FLinearColor>> Pooled = LinearColorPool.Pop(EAllowShrinking::No);
+        Pooled->Id = FTweenId::Generate();
+        Pooled->State = ETweenState::Pending;
+        return Pooled;
+    }
+    TSharedPtr<TTweenInstance<FLinearColor>> NewInst = MakeShared<TTweenInstance<FLinearColor>>();
+    NewInst->Id = FTweenId::Generate();
+    return NewInst;
+}
+

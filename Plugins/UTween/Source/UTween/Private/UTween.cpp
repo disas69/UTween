@@ -133,7 +133,7 @@ FTweenHandle UTween::CreateValueTween(
         return FTweenHandle();
     }
 
-    TSharedPtr<TTweenInstance<T>> Instance = MakeShared<TTweenInstance<T>>();
+    TSharedPtr<TTweenInstance<T>> Instance = Subsystem->AcquireTween<T>();
     Instance->StartValue = From;
     Instance->EndValue = To;
     Instance->Duration = FMath::Max(0.f, Duration);
@@ -247,7 +247,7 @@ FTweenHandle UTween::CreateTargetTween(
         return FTweenHandle();
     }
 
-    TSharedPtr<TTweenInstance<TValue>> Instance = MakeShared<TTweenInstance<TValue>>();
+    TSharedPtr<TTweenInstance<TValue>> Instance = Subsystem->AcquireTween<TValue>();
     Instance->EndValue = To;
     Instance->Duration = FMath::Max(0.f, Duration);
     Instance->BoundTarget = Target;

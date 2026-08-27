@@ -184,3 +184,31 @@ bool FTweenInstanceBase::IsTargetValid() const
     }
     return BoundTarget.IsValid();
 }
+
+void FTweenInstanceBase::ResetForPool()
+{
+    Id = FTweenId{};
+    Tag = FTweenTag();
+    DebugName = NAME_None;
+    Duration = 0.f;
+    Elapsed = 0.f;
+    Delay = 0.f;
+    DelayElapsed = 0.f;
+    Ease = ETweenEase::OutQuad;
+    LoopMode = ETweenLoopMode::None;
+    LoopCount = 0;
+    CurrentLoop = 0;
+    bAutoKill = true;
+    bUseFrom = false;
+    bIsRelative = false;
+    TimeMode = ETweenTimeMode::GameTime;
+    State = ETweenState::Killed;
+    bStartFired = false;
+    bHasTarget = false;
+    BoundTarget = nullptr;
+    OwningSubsystem = nullptr;
+    OnStartCallback = nullptr;
+    OnUpdateCallback = nullptr;
+    OnCompleteCallback = nullptr;
+    OnKillCallback = nullptr;
+}

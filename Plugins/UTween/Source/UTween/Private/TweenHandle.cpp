@@ -11,7 +11,14 @@ FTweenHandle::FTweenHandle(TSharedPtr<FTweenInstanceBase> InInstance)
 FTweenInstanceBase* FTweenHandle::Pin() const
 {
     TSharedPtr<FTweenInstanceBase> Pinned = InstancePtr.Pin();
-    return Pinned.Get();
+    if (FTweenInstanceBase* Inst = Pinned.Get())
+    {
+        if (!Id.IsValid() || Inst->Id == Id)
+        {
+            return Inst;
+        }
+    }
+    return nullptr;
 }
 
 FTweenHandle& FTweenHandle::SetEase(ETweenEase InEase)

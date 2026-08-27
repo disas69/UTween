@@ -4,9 +4,9 @@
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Containers/Ticker.h"
 #include "TweenTypes.h"
+#include "TweenInstance.h"
 #include "UTweenSubsystem.generated.h"
 
-class FTweenInstanceBase;
 class FTweenSequence;
 struct FTweenHandle;
 struct FTweenSequenceHandle;
@@ -21,6 +21,16 @@ public:
     virtual void Deinitialize() override;
 
     static UTweenSubsystem* Get(const UObject* WorldContext);
+
+    /** Acquire a pooled tween instance for the given type, or allocate a new one if pool is empty. */
+    template <typename T>
+    TSharedPtr<TTweenInstance<T>> AcquireTween();
+
+    /** Recycle a dead tween instance back into the appropriate pool. */
+    void RecycleTween(const TSharedPtr<FTweenInstanceBase>& Instance);
+
+    /** Empty all instance pools. */
+    void EmptyPools();
 
     /** Assign an Id, transition to Pending, and add the instance to the tick list. */
     TSharedPtr<FTweenInstanceBase> RegisterTween(TSharedPtr<FTweenInstanceBase> Instance);
@@ -63,4 +73,24 @@ private:
 
     TArray<TSharedPtr<FTweenInstanceBase>> ActiveTweens;
     TArray<TSharedPtr<FTweenSequence>> ActiveSequences;
+
+    TArray<TSharedPtr<TTweenInstance<float>>> FloatPool;
+    TArray<TSharedPtr<TTweenInstance<FVector2D>>> Vector2DPool;
+    TArray<TSharedPtr<TTweenInstance<FVector>>> VectorPool;
+    TArray<TSharedPtr<TTweenInstance<FRotator>>> RotatorPool;
+    TArray<TSharedPtr<TTweenInstance<FLinearColor>>> LinearColorPool;
 };
+
+template <> UTWEEN_API TSharedPtr<TTweenInstance<float>> UTweenSubsystem::AcquireTween<float>();
+template <> UTWEEN_API TSharedPtr<TTweenInstance<FVector2D>> UTweenSubsystem::AcquireTween<FVector2D>();
+template <> UTWEEN_API TSharedPtr<TTweenInstance<FVector>> UTweenSubsystem::AcquireTween<FVector>();
+template <> UTWEEN_API TSharedPtr<TTweenInstance<FRotator>> UTweenSubsystem::AcquireTween<FRotator>();
+template <> UTWEEN_API TSharedPtr<TTweenInstance<FLinearColor>> UTweenSubsystem::AcquireTween<FLinearColor>();
+
+template <typename T>
+TSharedPtr<TTweenInstance<T>> UTweenSubsystem::AcquireTween()
+{
+    TSharedPtr<TTweenInstance<T>> NewInstance = MakeShared<TTweenInstance<T>>();
+    NewInstance->Id = FTweenId::Generate();
+    return NewInstance;
+}
