@@ -63,6 +63,24 @@ public:
         float Duration,
         ETweenEase Ease = ETweenEase::OutQuad);
 
+    UFUNCTION(BlueprintCallable, Category = "UTween|Widget",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle TweenCanvasPosition(
+        UObject* WorldContextObject,
+        UWidget* Target,
+        FVector2D To,
+        float Duration,
+        ETweenEase Ease = ETweenEase::OutQuad);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Widget",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle TweenCanvasSize(
+        UObject* WorldContextObject,
+        UWidget* Target,
+        FVector2D To,
+        float Duration,
+        ETweenEase Ease = ETweenEase::OutQuad);
+
     UFUNCTION(BlueprintCallable, Category = "UTween|Actor",
         meta = (WorldContext = "WorldContextObject"))
     static FBPTweenHandle TweenActorLocation(

@@ -12,6 +12,7 @@
 #include <type_traits>
 
 class UWidget;
+class UCanvasPanelSlot;
 class AActor;
 class USceneComponent;
 class UMaterialInstanceDynamic;
@@ -67,6 +68,10 @@ public:
 
     // Widgets
     static FTweenHandle WidgetPosition(UWidget* Target, const FVector2D& To, float Duration);
+    static FTweenHandle CanvasPosition(UWidget* Target, const FVector2D& To, float Duration);
+    static FTweenHandle CanvasPosition(UCanvasPanelSlot* Target, const FVector2D& To, float Duration);
+    static FTweenHandle CanvasSize(UWidget* Target, const FVector2D& To, float Duration);
+    static FTweenHandle CanvasSize(UCanvasPanelSlot* Target, const FVector2D& To, float Duration);
     static FTweenHandle WidgetScale(UWidget* Target, const FVector2D& To, float Duration);
     static FTweenHandle WidgetRotation(UWidget* Target, float To, float Duration);
     static FTweenHandle WidgetOpacity(UWidget* Target, float To, float Duration);

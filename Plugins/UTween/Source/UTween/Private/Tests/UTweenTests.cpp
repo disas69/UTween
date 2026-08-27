@@ -6,6 +6,10 @@
 #include "UTweenSubsystem.h"
 #include "UTween.h"
 #include "Engine/GameInstance.h"
+#include "Components/Image.h"
+#include "Components/Border.h"
+#include "Components/TextBlock.h"
+#include "Components/CanvasPanelSlot.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -879,6 +883,151 @@ bool FUTweenNestedSubSequencePauseTest::RunTest(const FString& Parameters)
     ParentSeq->Kill();
     TestTrue(TEXT("Parent killed"), ParentSeq->IsKilled());
     TestTrue(TEXT("Child killed by cascade"), ChildSeq->IsKilled());
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenEasingMathExactnessTest,
+    "UTween.Easing.MathExactness", UTWEEN_TEST_FLAGS)
+
+bool FUTweenEasingMathExactnessTest::RunTest(const FString& Parameters)
+{
+    // InQuad: T^2 -> 0.5^2 = 0.25
+    TestEqual(TEXT("InQuad at 0.5"), FTweenEasing::Evaluate(ETweenEase::InQuad, 0.5f), 0.25f, FloatTolerance);
+
+    // OutQuad: 1 - (1-T)^2 -> 1 - 0.5^2 = 0.75
+    TestEqual(TEXT("OutQuad at 0.5"), FTweenEasing::Evaluate(ETweenEase::OutQuad, 0.5f), 0.75f, FloatTolerance);
+
+    // InOutQuad: at 0.25 -> 2 * 0.25^2 = 0.125
+    TestEqual(TEXT("InOutQuad at 0.25"), FTweenEasing::Evaluate(ETweenEase::InOutQuad, 0.25f), 0.125f, FloatTolerance);
+    // InOutQuad: at 0.75 -> 1 - (-2*0.75 + 2)^2 / 2 = 1 - 0.5^2 / 2 = 1 - 0.125 = 0.875
+    TestEqual(TEXT("InOutQuad at 0.75"), FTweenEasing::Evaluate(ETweenEase::InOutQuad, 0.75f), 0.875f, FloatTolerance);
+
+    // InCubic: T^3 -> 0.5^3 = 0.125
+    TestEqual(TEXT("InCubic at 0.5"), FTweenEasing::Evaluate(ETweenEase::InCubic, 0.5f), 0.125f, FloatTolerance);
+
+    // OutCubic: 1 - (1-T)^3 -> 1 - 0.5^3 = 0.875
+    TestEqual(TEXT("OutCubic at 0.5"), FTweenEasing::Evaluate(ETweenEase::OutCubic, 0.5f), 0.875f, FloatTolerance);
+
+    // InQuart: T^4 -> 0.5^4 = 0.0625
+    TestEqual(TEXT("InQuart at 0.5"), FTweenEasing::Evaluate(ETweenEase::InQuart, 0.5f), 0.0625f, FloatTolerance);
+
+    // OutQuart: 1 - (1-T)^4 -> 1 - 0.5^4 = 0.9375
+    TestEqual(TEXT("OutQuart at 0.5"), FTweenEasing::Evaluate(ETweenEase::OutQuart, 0.5f), 0.9375f, FloatTolerance);
+
+    // InQuint: T^5 -> 0.5^5 = 0.03125
+    TestEqual(TEXT("InQuint at 0.5"), FTweenEasing::Evaluate(ETweenEase::InQuint, 0.5f), 0.03125f, FloatTolerance);
+
+    // OutQuint: 1 - (1-T)^5 -> 1 - 0.5^5 = 0.96875
+    TestEqual(TEXT("OutQuint at 0.5"), FTweenEasing::Evaluate(ETweenEase::OutQuint, 0.5f), 0.96875f, FloatTolerance);
+
+    // Boundaries
+    TestEqual(TEXT("EaseOutBack at 0"), FTweenEasing::Evaluate(ETweenEase::OutBack, 0.0f), 0.0f, FloatTolerance);
+    TestEqual(TEXT("EaseOutBack at 1"), FTweenEasing::Evaluate(ETweenEase::OutBack, 1.0f), 1.0f, FloatTolerance);
+    TestEqual(TEXT("EaseInOutBack at 0"), FTweenEasing::Evaluate(ETweenEase::InOutBack, 0.0f), 0.0f, FloatTolerance);
+    TestEqual(TEXT("EaseInOutBack at 1"), FTweenEasing::Evaluate(ETweenEase::InOutBack, 1.0f), 1.0f, FloatTolerance);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenValueTypeEnumTest,
+    "UTween.Types.ValueTypeEnumMatching", UTWEEN_TEST_FLAGS)
+
+bool FUTweenValueTypeEnumTest::RunTest(const FString& Parameters)
+{
+    TTweenInstance<float> FloatInst;
+    TestEqual(TEXT("Float instance type"), FloatInst.ValueType, ETweenValueType::Float);
+    TestTrue(TEXT("Float IsType<float>"), FloatInst.IsType<float>());
+    TestFalse(TEXT("Float IsType<FVector>"), FloatInst.IsType<FVector>());
+
+    TTweenInstance<FVector2D> Vec2DInst;
+    TestEqual(TEXT("Vector2D instance type"), Vec2DInst.ValueType, ETweenValueType::Vector2D);
+    TestTrue(TEXT("Vector2D IsType<FVector2D>"), Vec2DInst.IsType<FVector2D>());
+
+    TTweenInstance<FVector> VecInst;
+    TestEqual(TEXT("Vector instance type"), VecInst.ValueType, ETweenValueType::Vector);
+    TestTrue(TEXT("Vector IsType<FVector>"), VecInst.IsType<FVector>());
+
+    TTweenInstance<FRotator> RotInst;
+    TestEqual(TEXT("Rotator instance type"), RotInst.ValueType, ETweenValueType::Rotator);
+    TestTrue(TEXT("Rotator IsType<FRotator>"), RotInst.IsType<FRotator>());
+
+    TTweenInstance<FLinearColor> ColorInst;
+    TestEqual(TEXT("LinearColor instance type"), ColorInst.ValueType, ETweenValueType::LinearColor);
+    TestTrue(TEXT("LinearColor IsType<FLinearColor>"), ColorInst.IsType<FLinearColor>());
+
+    // Test Handle.From() using the new enum
+    auto SharedInst = MakeShared<TTweenInstance<float>>();
+    FTweenHandle Handle(SharedInst);
+    Handle.From(42.f);
+    TestTrue(TEXT("From updated bUseFrom"), SharedInst->bUseFrom);
+    TestEqual(TEXT("From updated StartValue"), SharedInst->StartValue, 42.f, FloatTolerance);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenUMGWidgetColorTest,
+    "UTween.UMG.WidgetColorSupportedTypes", UTWEEN_TEST_FLAGS)
+
+bool FUTweenUMGWidgetColorTest::RunTest(const FString& Parameters)
+{
+    UGameInstance* GI = NewObject<UGameInstance>();
+    UTweenSubsystem* Subsystem = NewObject<UTweenSubsystem>(GI);
+    TestNotNull(TEXT("Subsystem created"), Subsystem);
+
+    // Test UImage color tweening
+    UImage* Image = NewObject<UImage>(GI);
+    Image->SetColorAndOpacity(FLinearColor::Black);
+    FTweenHandle ImageHandle = UTween::WidgetColor(Image, FLinearColor::White, 1.0f);
+    TestTrue(TEXT("ImageHandle valid"), ImageHandle.IsValid());
+    Subsystem->Tick(1.0f);
+    TestEqual(TEXT("Image color interpolated to White"), Image->GetColorAndOpacity(), FLinearColor::White);
+
+    // Test UBorder color tweening
+    UBorder* Border = NewObject<UBorder>(GI);
+    Border->SetBrushColor(FLinearColor::Black);
+    FTweenHandle BorderHandle = UTween::WidgetColor(Border, FLinearColor::Red, 1.0f);
+    TestTrue(TEXT("BorderHandle valid"), BorderHandle.IsValid());
+    Subsystem->Tick(1.0f);
+    TestEqual(TEXT("Border color interpolated to Red"), Border->GetBrushColor(), FLinearColor::Red);
+
+    // Test UTextBlock color tweening
+    UTextBlock* TextBlock = NewObject<UTextBlock>(GI);
+    TextBlock->SetColorAndOpacity(FSlateColor(FLinearColor::Black));
+    FTweenHandle TextHandle = UTween::WidgetColor(TextBlock, FLinearColor::Green, 1.0f);
+    TestTrue(TEXT("TextHandle valid"), TextHandle.IsValid());
+    Subsystem->Tick(1.0f);
+    TestEqual(TEXT("TextBlock color interpolated to Green"), TextBlock->GetColorAndOpacity().GetSpecifiedColor(), FLinearColor::Green);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenUMGCanvasSlotTest,
+    "UTween.UMG.CanvasSlotPositionAndSize", UTWEEN_TEST_FLAGS)
+
+bool FUTweenUMGCanvasSlotTest::RunTest(const FString& Parameters)
+{
+    UGameInstance* GI = NewObject<UGameInstance>();
+    UTweenSubsystem* Subsystem = NewObject<UTweenSubsystem>(GI);
+    TestNotNull(TEXT("Subsystem created"), Subsystem);
+
+    UCanvasPanelSlot* Slot = NewObject<UCanvasPanelSlot>(GI);
+    Slot->SetPosition(FVector2D(0.f, 0.f));
+    Slot->SetSize(FVector2D(100.f, 100.f));
+
+    FTweenHandle PosHandle = UTween::CanvasPosition(Slot, FVector2D(200.f, 300.f), 1.0f).SetEase(ETweenEase::Linear);
+    FTweenHandle SizeHandle = UTween::CanvasSize(Slot, FVector2D(500.f, 600.f), 1.0f).SetEase(ETweenEase::Linear);
+
+    TestTrue(TEXT("PosHandle valid"), PosHandle.IsValid());
+    TestTrue(TEXT("SizeHandle valid"), SizeHandle.IsValid());
+
+    Subsystem->Tick(0.5f);
+    TestEqual(TEXT("Slot Position at 50%"), Slot->GetPosition(), FVector2D(100.f, 150.f));
+    TestEqual(TEXT("Slot Size at 50%"), Slot->GetSize(), FVector2D(300.f, 350.f));
+
+    Subsystem->Tick(0.5f);
+    TestEqual(TEXT("Slot Position at 100%"), Slot->GetPosition(), FVector2D(200.f, 300.f));
+    TestEqual(TEXT("Slot Size at 100%"), Slot->GetSize(), FVector2D(500.f, 600.f));
 
     return true;
 }

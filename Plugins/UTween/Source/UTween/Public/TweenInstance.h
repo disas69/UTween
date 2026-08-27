@@ -7,24 +7,17 @@
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
 
-/**
- * RTTI-free per-type identity. Uses the address of a per-type static
- * sentinel as a stable unique id across modules that disable RTTI.
- */
 template <typename T>
-struct TTweenValueTypeTag
+struct TTweenValueTypeTraits
 {
-    static const uint8 Sentinel;
+    static constexpr ETweenValueType ValueType = ETweenValueType::Custom;
 };
 
-template <typename T>
-const uint8 TTweenValueTypeTag<T>::Sentinel = 0;
-
-template <typename T>
-FORCEINLINE uint64 GetTweenValueTypeHash()
-{
-    return reinterpret_cast<uint64>(&TTweenValueTypeTag<T>::Sentinel);
-}
+template <> struct TTweenValueTypeTraits<float> { static constexpr ETweenValueType ValueType = ETweenValueType::Float; };
+template <> struct TTweenValueTypeTraits<FVector2D> { static constexpr ETweenValueType ValueType = ETweenValueType::Vector2D; };
+template <> struct TTweenValueTypeTraits<FVector> { static constexpr ETweenValueType ValueType = ETweenValueType::Vector; };
+template <> struct TTweenValueTypeTraits<FRotator> { static constexpr ETweenValueType ValueType = ETweenValueType::Rotator; };
+template <> struct TTweenValueTypeTraits<FLinearColor> { static constexpr ETweenValueType ValueType = ETweenValueType::LinearColor; };
 
 class FTweenSequence;
 class UTweenSubsystem;
@@ -67,7 +60,7 @@ public:
     bool bHasTarget = false;
     TWeakObjectPtr<UTweenSubsystem> OwningSubsystem;
 
-    uint64 ValueTypeHash = 0;
+    ETweenValueType ValueType = ETweenValueType::Unknown;
 
     void Tick(float DeltaTime);
     void Kill();
@@ -84,7 +77,7 @@ public:
     template <typename T>
     bool IsType() const
     {
-        return ValueTypeHash == GetTweenValueTypeHash<T>();
+        return ValueType == TTweenValueTypeTraits<T>::ValueType;
     }
 
 protected:
@@ -113,7 +106,7 @@ public:
 
     TTweenInstance()
     {
-        ValueTypeHash = GetTweenValueTypeHash<T>();
+        ValueType = TTweenValueTypeTraits<T>::ValueType;
     }
 
 protected:

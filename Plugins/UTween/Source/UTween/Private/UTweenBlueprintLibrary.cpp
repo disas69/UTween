@@ -86,6 +86,20 @@ FBPTweenHandle UTweenBlueprintLibrary::TweenWidgetColor(
     return FBPTweenHandle(UTween::WidgetColor(Target, To, Duration).SetEase(Ease));
 }
 
+FBPTweenHandle UTweenBlueprintLibrary::TweenCanvasPosition(
+    UObject* WorldContextObject, UWidget* Target,
+    FVector2D To, float Duration, ETweenEase Ease)
+{
+    return FBPTweenHandle(UTween::CanvasPosition(Target, To, Duration).SetEase(Ease));
+}
+
+FBPTweenHandle UTweenBlueprintLibrary::TweenCanvasSize(
+    UObject* WorldContextObject, UWidget* Target,
+    FVector2D To, float Duration, ETweenEase Ease)
+{
+    return FBPTweenHandle(UTween::CanvasSize(Target, To, Duration).SetEase(Ease));
+}
+
 FBPTweenHandle UTweenBlueprintLibrary::TweenActorLocation(
     UObject* WorldContextObject, AActor* Target,
     FVector To, float Duration, ETweenEase Ease)

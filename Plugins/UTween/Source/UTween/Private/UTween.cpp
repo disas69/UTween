@@ -12,6 +12,10 @@
 #include "Components/SceneComponent.h"
 #include "Components/Widget.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/Image.h"
+#include "Components/Border.h"
+#include "Components/TextBlock.h"
+#include "Components/CanvasPanelSlot.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/UObjectIterator.h"
 
@@ -347,38 +351,198 @@ FTweenHandle UTween::WidgetOpacity(UWidget* Target, float To, float Duration)
         TEXT("WidgetOpacity"));
 }
 
-FTweenHandle UTween::WidgetColor(UWidget* Target, const FLinearColor& To, float Duration)
+FTweenHandle UTween::CanvasPosition(UWidget* Target, const FVector2D& To, float Duration)
 {
-    // UWidget base has no ColorAndOpacity; support UUserWidget only for now.
-    UUserWidget* AsUser = Cast<UUserWidget>(Target);
-    if (!AsUser)
+    if (!Target)
     {
-        UE_LOG(LogUTween, Warning,
-            TEXT("UTween::WidgetColor currently supports UUserWidget targets only (got %s); returning invalid handle."),
-            Target ? *Target->GetClass()->GetName() : TEXT("null"));
+        UE_LOG(LogUTween, Warning, TEXT("UTween::CanvasPosition called with null target; returning invalid handle."));
         return FTweenHandle();
     }
 
-    TWeakObjectPtr<UUserWidget> Weak(AsUser);
-    return CreateTargetTween<FLinearColor>(
-        AsUser, To, Duration,
-        [Weak]() -> FLinearColor
+    UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Target->Slot);
+    if (!CanvasSlot)
+    {
+        UE_LOG(LogUTween, Warning, TEXT("UTween::CanvasPosition: Target widget slot is not a UCanvasPanelSlot; returning invalid handle."));
+        return FTweenHandle();
+    }
+
+    return CanvasPosition(CanvasSlot, To, Duration);
+}
+
+FTweenHandle UTween::CanvasPosition(UCanvasPanelSlot* Target, const FVector2D& To, float Duration)
+{
+    TWeakObjectPtr<UCanvasPanelSlot> Weak(Target);
+    return CreateTargetTween<FVector2D>(
+        Target, To, Duration,
+        [Weak]() -> FVector2D
         {
-            if (UUserWidget* W = Weak.Get())
+            if (UCanvasPanelSlot* Slot = Weak.Get())
             {
-                return W->GetColorAndOpacity();
+                return Slot->GetPosition();
             }
-            return FLinearColor::White;
+            return FVector2D::ZeroVector;
         },
-        [Weak](const FLinearColor& V)
+        [Weak](const FVector2D& V)
         {
-            if (UUserWidget* W = Weak.Get())
+            if (UCanvasPanelSlot* Slot = Weak.Get())
             {
-                W->SetColorAndOpacity(V);
+                Slot->SetPosition(V);
             }
         },
         nullptr,
-        TEXT("WidgetColor"));
+        TEXT("CanvasPosition"));
+}
+
+FTweenHandle UTween::CanvasSize(UWidget* Target, const FVector2D& To, float Duration)
+{
+    if (!Target)
+    {
+        UE_LOG(LogUTween, Warning, TEXT("UTween::CanvasSize called with null target; returning invalid handle."));
+        return FTweenHandle();
+    }
+
+    UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Target->Slot);
+    if (!CanvasSlot)
+    {
+        UE_LOG(LogUTween, Warning, TEXT("UTween::CanvasSize: Target widget slot is not a UCanvasPanelSlot; returning invalid handle."));
+        return FTweenHandle();
+    }
+
+    return CanvasSize(CanvasSlot, To, Duration);
+}
+
+FTweenHandle UTween::CanvasSize(UCanvasPanelSlot* Target, const FVector2D& To, float Duration)
+{
+    TWeakObjectPtr<UCanvasPanelSlot> Weak(Target);
+    return CreateTargetTween<FVector2D>(
+        Target, To, Duration,
+        [Weak]() -> FVector2D
+        {
+            if (UCanvasPanelSlot* Slot = Weak.Get())
+            {
+                return Slot->GetSize();
+            }
+            return FVector2D::ZeroVector;
+        },
+        [Weak](const FVector2D& V)
+        {
+            if (UCanvasPanelSlot* Slot = Weak.Get())
+            {
+                Slot->SetSize(V);
+            }
+        },
+        nullptr,
+        TEXT("CanvasSize"));
+}
+
+FTweenHandle UTween::WidgetColor(UWidget* Target, const FLinearColor& To, float Duration)
+{
+    if (!Target)
+    {
+        UE_LOG(LogUTween, Warning, TEXT("UTween::WidgetColor called with null target; returning invalid handle."));
+        return FTweenHandle();
+    }
+
+    if (UUserWidget* AsUser = Cast<UUserWidget>(Target))
+    {
+        TWeakObjectPtr<UUserWidget> Weak(AsUser);
+        return CreateTargetTween<FLinearColor>(
+            AsUser, To, Duration,
+            [Weak]() -> FLinearColor
+            {
+                if (UUserWidget* W = Weak.Get())
+                {
+                    return W->GetColorAndOpacity();
+                }
+                return FLinearColor::White;
+            },
+            [Weak](const FLinearColor& V)
+            {
+                if (UUserWidget* W = Weak.Get())
+                {
+                    W->SetColorAndOpacity(V);
+                }
+            },
+            nullptr,
+            TEXT("WidgetColor<UserWidget>"));
+    }
+
+    if (UImage* AsImage = Cast<UImage>(Target))
+    {
+        TWeakObjectPtr<UImage> Weak(AsImage);
+        return CreateTargetTween<FLinearColor>(
+            AsImage, To, Duration,
+            [Weak]() -> FLinearColor
+            {
+                if (UImage* Img = Weak.Get())
+                {
+                    return Img->GetColorAndOpacity();
+                }
+                return FLinearColor::White;
+            },
+            [Weak](const FLinearColor& V)
+            {
+                if (UImage* Img = Weak.Get())
+                {
+                    Img->SetColorAndOpacity(V);
+                }
+            },
+            nullptr,
+            TEXT("WidgetColor<Image>"));
+    }
+
+    if (UBorder* AsBorder = Cast<UBorder>(Target))
+    {
+        TWeakObjectPtr<UBorder> Weak(AsBorder);
+        return CreateTargetTween<FLinearColor>(
+            AsBorder, To, Duration,
+            [Weak]() -> FLinearColor
+            {
+                if (UBorder* Border = Weak.Get())
+                {
+                    return Border->GetBrushColor();
+                }
+                return FLinearColor::White;
+            },
+            [Weak](const FLinearColor& V)
+            {
+                if (UBorder* Border = Weak.Get())
+                {
+                    Border->SetBrushColor(V);
+                }
+            },
+            nullptr,
+            TEXT("WidgetColor<Border>"));
+    }
+
+    if (UTextBlock* AsText = Cast<UTextBlock>(Target))
+    {
+        TWeakObjectPtr<UTextBlock> Weak(AsText);
+        return CreateTargetTween<FLinearColor>(
+            AsText, To, Duration,
+            [Weak]() -> FLinearColor
+            {
+                if (UTextBlock* Text = Weak.Get())
+                {
+                    return Text->GetColorAndOpacity().GetSpecifiedColor();
+                }
+                return FLinearColor::White;
+            },
+            [Weak](const FLinearColor& V)
+            {
+                if (UTextBlock* Text = Weak.Get())
+                {
+                    Text->SetColorAndOpacity(FSlateColor(V));
+                }
+            },
+            nullptr,
+            TEXT("WidgetColor<TextBlock>"));
+    }
+
+    UE_LOG(LogUTween, Warning,
+        TEXT("UTween::WidgetColor called on unsupported widget type %s; returning invalid handle."),
+        *Target->GetClass()->GetName());
+    return FTweenHandle();
 }
 
 FTweenHandle UTween::ActorLocation(AActor* Target, const FVector& To, float Duration)

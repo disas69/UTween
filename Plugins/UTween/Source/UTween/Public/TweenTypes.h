@@ -65,6 +65,18 @@ enum class ETweenState : uint8
     Killed,
 };
 
+UENUM(BlueprintType)
+enum class ETweenValueType : uint8
+{
+    Unknown,
+    Float,
+    Vector2D,
+    Vector,
+    Rotator,
+    LinearColor,
+    Custom,
+};
+
 USTRUCT(BlueprintType)
 struct UTWEEN_API FTweenId
 {

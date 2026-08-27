@@ -71,7 +71,12 @@ float FTweenEasing::EaseOutQuad(float T)
 
 float FTweenEasing::EaseInOutQuad(float T)
 {
-    return T < 0.5f ? 2.0f * T * T : 1.0f - FMath::Pow(-2.0f * T + 2.0f, 2.0f) / 2.0f;
+    if (T < 0.5f)
+    {
+        return 2.0f * T * T;
+    }
+    const float U = -2.0f * T + 2.0f;
+    return 1.0f - (U * U) / 2.0f;
 }
 
 float FTweenEasing::EaseInCubic(float T)
@@ -81,42 +86,68 @@ float FTweenEasing::EaseInCubic(float T)
 
 float FTweenEasing::EaseOutCubic(float T)
 {
-    return 1.0f - FMath::Pow(1.0f - T, 3.0f);
+    const float U = 1.0f - T;
+    return 1.0f - (U * U * U);
 }
 
 float FTweenEasing::EaseInOutCubic(float T)
 {
-    return T < 0.5f ? 4.0f * T * T * T : 1.0f - FMath::Pow(-2.0f * T + 2.0f, 3.0f) / 2.0f;
+    if (T < 0.5f)
+    {
+        return 4.0f * T * T * T;
+    }
+    const float U = -2.0f * T + 2.0f;
+    return 1.0f - (U * U * U) / 2.0f;
 }
 
 float FTweenEasing::EaseInQuart(float T)
 {
-    return T * T * T * T;
+    const float T2 = T * T;
+    return T2 * T2;
 }
 
 float FTweenEasing::EaseOutQuart(float T)
 {
-    return 1.0f - FMath::Pow(1.0f - T, 4.0f);
+    const float U = 1.0f - T;
+    const float U2 = U * U;
+    return 1.0f - (U2 * U2);
 }
 
 float FTweenEasing::EaseInOutQuart(float T)
 {
-    return T < 0.5f ? 8.0f * T * T * T * T : 1.0f - FMath::Pow(-2.0f * T + 2.0f, 4.0f) / 2.0f;
+    if (T < 0.5f)
+    {
+        const float T2 = T * T;
+        return 8.0f * T2 * T2;
+    }
+    const float U = -2.0f * T + 2.0f;
+    const float U2 = U * U;
+    return 1.0f - (U2 * U2) / 2.0f;
 }
 
 float FTweenEasing::EaseInQuint(float T)
 {
-    return T * T * T * T * T;
+    const float T2 = T * T;
+    return T2 * T2 * T;
 }
 
 float FTweenEasing::EaseOutQuint(float T)
 {
-    return 1.0f - FMath::Pow(1.0f - T, 5.0f);
+    const float U = 1.0f - T;
+    const float U2 = U * U;
+    return 1.0f - (U2 * U2 * U);
 }
 
 float FTweenEasing::EaseInOutQuint(float T)
 {
-    return T < 0.5f ? 16.0f * T * T * T * T * T : 1.0f - FMath::Pow(-2.0f * T + 2.0f, 5.0f) / 2.0f;
+    if (T < 0.5f)
+    {
+        const float T2 = T * T;
+        return 16.0f * T2 * T2 * T;
+    }
+    const float U = -2.0f * T + 2.0f;
+    const float U2 = U * U;
+    return 1.0f - (U2 * U2 * U) / 2.0f;
 }
 
 float FTweenEasing::EaseInSine(float T)
@@ -169,7 +200,13 @@ float FTweenEasing::EaseOutCirc(float T)
 
 float FTweenEasing::EaseInOutCirc(float T)
 {
-    return T < 0.5f ? (1.0f - FMath::Sqrt(1.0f - FMath::Pow(2.0f * T, 2.0f))) / 2.0f : (FMath::Sqrt(1.0f - FMath::Pow(-2.0f * T + 2.0f, 2.0f)) + 1.0f) / 2.0f;
+    if (T < 0.5f)
+    {
+        const float U = 2.0f * T;
+        return (1.0f - FMath::Sqrt(1.0f - U * U)) / 2.0f;
+    }
+    const float U = -2.0f * T + 2.0f;
+    return (FMath::Sqrt(1.0f - U * U) + 1.0f) / 2.0f;
 }
 
 float FTweenEasing::EaseInBack(float T)
@@ -179,13 +216,20 @@ float FTweenEasing::EaseInBack(float T)
 
 float FTweenEasing::EaseOutBack(float T)
 {
-    return 1.0f + C3 * FMath::Pow(T - 1.0f, 3.0f) + C1 * FMath::Pow(T - 1.0f, 2.0f);
+    const float U = T - 1.0f;
+    const float U2 = U * U;
+    return 1.0f + C3 * (U2 * U) + C1 * U2;
 }
 
 float FTweenEasing::EaseInOutBack(float T)
 {
-    return T < 0.5f ? (FMath::Pow(2.0f * T, 2.0f) * ((C2 + 1.0f) * 2.0f * T - C2)) / 2.0f
-                    : (FMath::Pow(2.0f * T - 2.0f, 2.0f) * ((C2 + 1.0f) * (T * 2.0f - 2.0f) + C2) + 2.0f) / 2.0f;
+    if (T < 0.5f)
+    {
+        const float U = 2.0f * T;
+        return (U * U * ((C2 + 1.0f) * U - C2)) / 2.0f;
+    }
+    const float U = 2.0f * T - 2.0f;
+    return (U * U * ((C2 + 1.0f) * U + C2) + 2.0f) / 2.0f;
 }
 
 float FTweenEasing::EaseInElastic(float T)
