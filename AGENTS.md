@@ -6,7 +6,7 @@ This document is the primary reference for AI agents and human developers workin
 
 ## 1. Project Overview
 
-`UTween` is a runtime tween and feedback animation framework for Unreal Engine 5.6 (inspired by Unity's DOTween and Godot Tweens).
+`UTween` is a runtime tween and feedback animation framework for Unreal Engine 5.8 (5.8.2) (inspired by Unity's DOTween and Godot Tweens).
 
 It provides a high-performance, fluent C++ API, a convenience macro layer, and Blueprint function libraries to animate:
 - **UMG Widgets**: Render translation, scale, rotation, opacity, color/tint (render-space transforms, avoiding expensive Slate layout recalculations).
@@ -65,7 +65,7 @@ UTween/
 ├── Scripts/
 │   ├── Sync-UnrealProject.ps1                  <-- PowerShell automation to regenerate project files and compile targets
 │   └── Sync-UnrealProject.bat                  <-- Batch wrapper
-└── UTween.uproject                             <-- Engine association 5.6, enables UTween plugin and UTweenProject module
+└── UTween.uproject                             <-- Engine association 5.8, enables UTween plugin and UTweenProject module
 ```
 
 ---
@@ -142,9 +142,15 @@ UTween/
 > ```cmd
 > Scripts\Sync-UnrealProject.bat -BuildEditor
 > ```
+>
+> To run automation tests after building:
+> ```powershell
+> powershell -ExecutionPolicy Bypass -File Scripts/Sync-UnrealProject.ps1 -BuildEditor -RunTests
+> ```
 
 ### What this script does:
-1. Automatically discovers the local Unreal Engine 5.6 installation (`C:\Program Files\Epic Games\UE_5.6`).
+1. Automatically discovers the local Unreal Engine 5.8 installation (`C:\Program Files\Epic Games\UE_5.8`).
 2. Regenerates Visual Studio project files (`Build.bat -ProjectFiles`).
 3. Compiles the `UTweenEditor` target (Development Win64) using `UnrealBuildTool`.
-4. Guarantees that compilation errors are discovered immediately and that the user's IDE is kept completely in sync.
+4. Optionally executes the automation test suite headlessly via `UnrealEditor-Cmd.exe` (`-RunTests`).
+5. Guarantees that compilation errors are discovered immediately and that the user's IDE is kept completely in sync.
