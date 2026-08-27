@@ -7,6 +7,8 @@
 #include "Templates/SharedPointer.h"
 
 class FTweenInstanceBase;
+class FTweenSequence;
+class UTweenSubsystem;
 struct FTweenHandle;
 
 enum class ESequenceActionType : uint8
@@ -14,6 +16,7 @@ enum class ESequenceActionType : uint8
     Tween,
     Interval,
     Callback,
+    SubSequence,
 };
 
 /** One entry on a sequence's timeline. Flat tagged-union keyed off Type. */
@@ -24,6 +27,7 @@ struct FSequenceAction
     float Duration = 0.f;
 
     TSharedPtr<FTweenInstanceBase> TweenInstance;
+    TSharedPtr<FTweenSequence> SubSequence;
     TFunction<void()> CallbackFunc;
 
     bool bStarted = false;
@@ -51,6 +55,8 @@ public:
     TWeakObjectPtr<UObject> BoundTarget;
     bool bBoundTargetExplicit = false;
 
+    TWeakObjectPtr<UTweenSubsystem> OwningSubsystem;
+
     TFunction<void()> OnCompleteCallback;
     TFunction<void()> OnKillCallback;
 
@@ -64,6 +70,7 @@ public:
     bool IsKilled() const { return State == ETweenState::Killed; }
 
     void AddTweenAction(TSharedPtr<FTweenInstanceBase> Instance, bool bJoin);
+    void AddSequenceAction(TSharedPtr<FTweenSequence> SubSeq, bool bJoin);
     void AddIntervalAction(float InDuration);
     void AddCallbackAction(TFunction<void()> Callback);
 
@@ -84,7 +91,9 @@ struct UTWEEN_API FTweenSequenceHandle
     explicit FTweenSequenceHandle(TSharedPtr<FTweenSequence> InSequence);
 
     FTweenSequenceHandle& Append(FTweenHandle Tween);
+    FTweenSequenceHandle& Append(FTweenSequenceHandle SubSequence);
     FTweenSequenceHandle& Join(FTweenHandle Tween);
+    FTweenSequenceHandle& Join(FTweenSequenceHandle SubSequence);
     FTweenSequenceHandle& AppendInterval(float InDuration);
     FTweenSequenceHandle& AppendCallback(TFunction<void()> Callback);
 
@@ -103,6 +112,7 @@ struct UTWEEN_API FTweenSequenceHandle
     bool IsValid() const;
     bool IsPlaying() const;
     FTweenId GetId() const { return Id; }
+    TSharedPtr<FTweenSequence> GetInstance() const { return SequencePtr.Pin(); }
 
 private:
     TWeakPtr<FTweenSequence> SequencePtr;
@@ -110,4 +120,5 @@ private:
 
     FTweenSequence* Pin() const;
     void AttachTweenHandle(FTweenHandle Tween, bool bJoin);
+    void AttachSequenceHandle(FTweenSequenceHandle SubSequence, bool bJoin);
 };

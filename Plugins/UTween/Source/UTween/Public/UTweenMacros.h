@@ -110,12 +110,15 @@ namespace UTweenDetail
             break;
 
         case FSequenceStep::EKind::SubSequence:
-        {
-            // Fire-and-forget; parent does not wait for the sub-sequence.
-            FTweenSequenceHandle Sub = Step.SubSequence;
-            Seq.AppendCallback([Sub]() mutable { Sub.Play(); });
+            if (bParallel)
+            {
+                Seq.Join(Step.SubSequence);
+            }
+            else
+            {
+                Seq.Append(Step.SubSequence);
+            }
             break;
-        }
         }
     }
 
@@ -135,7 +138,12 @@ namespace UTweenDetail
     template <typename TObj, typename... TArgs>
     FTweenSequenceHandle BuildSequence(TObj* Obj, TArgs&&... Args)
     {
-        FTweenSequenceHandle Seq = UTween::Sequence();
+        const UObject* WorldContext = nullptr;
+        if constexpr (TIsDerivedFrom<TObj, UObject>::Value)
+        {
+            WorldContext = Obj;
+        }
+        FTweenSequenceHandle Seq = UTween::Sequence(WorldContext);
         BindSequenceToObject(Seq, Obj);
 
         (ApplyStep(Seq, ToStep(std::forward<TArgs>(Args)), /*bParallel=*/false), ...);
@@ -145,7 +153,12 @@ namespace UTweenDetail
     template <typename TObj, typename THead, typename... TRest>
     FTweenSequenceHandle BuildParallel(TObj* Obj, THead&& Head, TRest&&... Rest)
     {
-        FTweenSequenceHandle Seq = UTween::Sequence();
+        const UObject* WorldContext = nullptr;
+        if constexpr (TIsDerivedFrom<TObj, UObject>::Value)
+        {
+            WorldContext = Obj;
+        }
+        FTweenSequenceHandle Seq = UTween::Sequence(WorldContext);
         BindSequenceToObject(Seq, Obj);
 
         ApplyStep(Seq, ToStep(std::forward<THead>(Head)), /*bParallel=*/false);

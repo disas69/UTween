@@ -31,6 +31,9 @@ public:
     /** Remove a tween from the active list without killing it, transferring ownership. */
     TSharedPtr<FTweenInstanceBase> DetachTween(FTweenId Id);
 
+    /** Remove a sequence from the active list without killing it, transferring ownership. */
+    TSharedPtr<FTweenSequence> DetachSequence(FTweenId Id);
+
     /** Assign an Id and add the sequence to the tick list. */
     TSharedPtr<FTweenSequence> RegisterSequence(TSharedPtr<FTweenSequence> Sequence);
 

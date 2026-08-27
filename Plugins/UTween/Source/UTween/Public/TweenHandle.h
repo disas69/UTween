@@ -46,6 +46,7 @@ struct UTWEEN_API FTweenHandle
     bool IsPlaying() const;
     ETweenState GetState() const;
     FTweenId GetId() const { return Id; }
+    TSharedPtr<FTweenInstanceBase> GetInstance() const { return InstancePtr.Pin(); }
 
 private:
     TWeakPtr<FTweenInstanceBase> InstancePtr;

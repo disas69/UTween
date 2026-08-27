@@ -20,6 +20,17 @@ void FTweenSequence::Pause()
     if (State == ETweenState::Playing || State == ETweenState::Pending)
     {
         State = ETweenState::Paused;
+        for (FSequenceAction& Action : Actions)
+        {
+            if (Action.Type == ESequenceActionType::Tween && Action.TweenInstance.IsValid() && Action.TweenInstance->State == ETweenState::Playing)
+            {
+                Action.TweenInstance->Pause();
+            }
+            else if (Action.Type == ESequenceActionType::SubSequence && Action.SubSequence.IsValid() && Action.SubSequence->State == ETweenState::Playing)
+            {
+                Action.SubSequence->Pause();
+            }
+        }
     }
 }
 
@@ -28,6 +39,17 @@ void FTweenSequence::Resume()
     if (State == ETweenState::Paused)
     {
         State = ETweenState::Playing;
+        for (FSequenceAction& Action : Actions)
+        {
+            if (Action.Type == ESequenceActionType::Tween && Action.TweenInstance.IsValid() && Action.TweenInstance->State == ETweenState::Paused)
+            {
+                Action.TweenInstance->Resume();
+            }
+            else if (Action.Type == ESequenceActionType::SubSequence && Action.SubSequence.IsValid() && Action.SubSequence->State == ETweenState::Paused)
+            {
+                Action.SubSequence->Resume();
+            }
+        }
     }
 }
 
@@ -43,6 +65,10 @@ void FTweenSequence::Kill()
         if (Action.Type == ESequenceActionType::Tween && Action.TweenInstance.IsValid())
         {
             Action.TweenInstance->Kill();
+        }
+        else if (Action.Type == ESequenceActionType::SubSequence && Action.SubSequence.IsValid())
+        {
+            Action.SubSequence->Kill();
         }
     }
 
@@ -97,6 +123,11 @@ void FTweenSequence::Tick(float DeltaTime)
             {
                 Action.TweenInstance->State = ETweenState::Playing;
             }
+
+            if (Action.Type == ESequenceActionType::SubSequence && Action.SubSequence.IsValid())
+            {
+                Action.SubSequence->State = ETweenState::Playing;
+            }
         }
 
         if (Action.bStarted && Action.Type == ESequenceActionType::Tween && !Action.bComplete)
@@ -118,6 +149,30 @@ void FTweenSequence::Tick(float DeltaTime)
                     {
                         Action.TweenInstance->Complete();
                     }
+                    Action.bComplete = true;
+                }
+            }
+            else
+            {
+                Action.bComplete = true;
+            }
+        }
+
+        if (Action.bStarted && Action.Type == ESequenceActionType::SubSequence && !Action.bComplete)
+        {
+            if (Action.SubSequence.IsValid())
+            {
+                const float SliceStart = FMath::Max(PrevCursor, Action.StartTime);
+                const float SliceEnd = FMath::Min(Cursor, ActionEnd);
+                const float OverlapDelta = FMath::Max(0.f, SliceEnd - SliceStart);
+
+                if (OverlapDelta > 0.f)
+                {
+                    Action.SubSequence->Tick(OverlapDelta);
+                }
+
+                if (Action.SubSequence->IsComplete() || Action.SubSequence->IsKilled() || Cursor >= ActionEnd)
+                {
                     Action.bComplete = true;
                 }
             }
@@ -207,6 +262,11 @@ void FTweenSequence::ResetForLoop()
                 Inst->SwapStartAndEnd();
             }
         }
+        else if (Action.Type == ESequenceActionType::SubSequence && Action.SubSequence.IsValid())
+        {
+            Action.SubSequence->State = ETweenState::Playing;
+            Action.SubSequence->ResetForLoop();
+        }
     }
 }
 
@@ -233,6 +293,44 @@ void FTweenSequence::AddTweenAction(TSharedPtr<FTweenInstanceBase> Instance, boo
     Action.Type = ESequenceActionType::Tween;
     Action.Duration = ActionDuration;
     Action.TweenInstance = Instance;
+
+    if (bJoin && Actions.Num() > 0)
+    {
+        Action.StartTime = LastAppendStart;
+    }
+    else
+    {
+        Action.StartTime = InsertCursor;
+        LastAppendStart = InsertCursor;
+        LastAppendDuration = ActionDuration;
+        InsertCursor += ActionDuration;
+    }
+
+    const float End = Action.StartTime + Action.Duration;
+    TotalDuration = FMath::Max(TotalDuration, End);
+    if (bJoin)
+    {
+        InsertCursor = FMath::Max(InsertCursor, End);
+    }
+
+    Actions.Add(MoveTemp(Action));
+}
+
+void FTweenSequence::AddSequenceAction(TSharedPtr<FTweenSequence> SubSeq, bool bJoin)
+{
+    if (!SubSeq.IsValid() || SubSeq.Get() == this)
+    {
+        return;
+    }
+
+    SubSeq->State = ETweenState::Pending;
+
+    const float ActionDuration = FMath::Max(0.f, SubSeq->TotalDuration);
+
+    FSequenceAction Action;
+    Action.Type = ESequenceActionType::SubSequence;
+    Action.Duration = ActionDuration;
+    Action.SubSequence = SubSeq;
 
     if (bJoin && Actions.Num() > 0)
     {
@@ -306,29 +404,42 @@ void FTweenSequenceHandle::AttachTweenHandle(FTweenHandle Tween, bool bJoin)
         return;
     }
 
-    const FTweenId TweenId = Tween.GetId();
-    if (!TweenId.IsValid())
-    {
-        return;
-    }
-
-    UTweenSubsystem* Subsystem = UTween::GetSubsystem();
-    if (!Subsystem)
-    {
-        UE_LOG(LogUTween, Warning, TEXT("FTweenSequenceHandle::Attach: no active subsystem; ignoring."));
-        return;
-    }
-
-    TSharedPtr<FTweenInstanceBase> Instance = Subsystem->DetachTween(TweenId);
+    TSharedPtr<FTweenInstanceBase> Instance = Tween.GetInstance();
     if (!Instance.IsValid())
     {
-        UE_LOG(LogUTween, Warning,
-            TEXT("FTweenSequenceHandle::Attach: tween Id=%lld not found on subsystem; ignoring."),
-            TweenId.Value);
         return;
+    }
+
+    if (Instance->OwningSubsystem.IsValid())
+    {
+        Instance->OwningSubsystem->DetachTween(Instance->Id);
+        Instance->OwningSubsystem.Reset();
     }
 
     Seq->AddTweenAction(Instance, bJoin);
+}
+
+void FTweenSequenceHandle::AttachSequenceHandle(FTweenSequenceHandle SubSequence, bool bJoin)
+{
+    FTweenSequence* Seq = Pin();
+    if (!Seq)
+    {
+        return;
+    }
+
+    TSharedPtr<FTweenSequence> SubSeq = SubSequence.GetInstance();
+    if (!SubSeq.IsValid() || SubSeq.Get() == Seq)
+    {
+        return;
+    }
+
+    if (SubSeq->OwningSubsystem.IsValid())
+    {
+        SubSeq->OwningSubsystem->DetachSequence(SubSeq->Id);
+        SubSeq->OwningSubsystem.Reset();
+    }
+
+    Seq->AddSequenceAction(SubSeq, bJoin);
 }
 
 FTweenSequenceHandle& FTweenSequenceHandle::Append(FTweenHandle Tween)
@@ -337,9 +448,21 @@ FTweenSequenceHandle& FTweenSequenceHandle::Append(FTweenHandle Tween)
     return *this;
 }
 
+FTweenSequenceHandle& FTweenSequenceHandle::Append(FTweenSequenceHandle SubSequence)
+{
+    AttachSequenceHandle(SubSequence, false);
+    return *this;
+}
+
 FTweenSequenceHandle& FTweenSequenceHandle::Join(FTweenHandle Tween)
 {
     AttachTweenHandle(Tween, true);
+    return *this;
+}
+
+FTweenSequenceHandle& FTweenSequenceHandle::Join(FTweenSequenceHandle SubSequence)
+{
+    AttachSequenceHandle(SubSequence, true);
     return *this;
 }
 

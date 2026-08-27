@@ -4,6 +4,7 @@
 #include "TweenSequence.h"
 #include "TweenHandle.h"
 #include "UTweenSubsystem.h"
+#include "UTween.h"
 #include "Engine/GameInstance.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -740,6 +741,145 @@ bool FUTweenSubsystemKillAllInCallbackTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("T1 killed"), T1->IsKilled());
     TestTrue(TEXT("T2 killed"), T2->IsKilled());
     TestEqual(TEXT("No active tweens remain"), Subsystem->GetActiveTweenCount(), 0);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenMultiWorldSubsystemRoutingTest,
+    "UTween.MultiWorld.TargetRoutesToCorrectSubsystem", UTWEEN_TEST_FLAGS)
+
+bool FUTweenMultiWorldSubsystemRoutingTest::RunTest(const FString& Parameters)
+{
+    UGameInstance* GI1 = NewObject<UGameInstance>();
+    UGameInstance* GI2 = NewObject<UGameInstance>();
+
+    UTweenSubsystem* Sub1 = NewObject<UTweenSubsystem>(GI1);
+    UTweenSubsystem* Sub2 = NewObject<UTweenSubsystem>(GI2);
+
+    TestNotNull(TEXT("Sub1 created"), Sub1);
+    TestNotNull(TEXT("Sub2 created"), Sub2);
+
+    TestEqual(TEXT("Resolves to Sub1"), UTween::GetSubsystem(GI1), Sub1);
+    TestEqual(TEXT("Resolves to Sub2"), UTween::GetSubsystem(GI2), Sub2);
+    TestTrue(TEXT("Subsystems are distinct"), Sub1 != Sub2);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenDirectAttachDetachesFromSubsystemTest,
+    "UTween.Sequence.DirectAttachDetachesFromSubsystem", UTWEEN_TEST_FLAGS)
+
+bool FUTweenDirectAttachDetachesFromSubsystemTest::RunTest(const FString& Parameters)
+{
+    UGameInstance* GI = NewObject<UGameInstance>();
+    UTweenSubsystem* Subsystem = NewObject<UTweenSubsystem>(GI);
+    TestNotNull(TEXT("Subsystem created"), Subsystem);
+
+    float Val = 0.f;
+    auto TweenInst = MakeFloatTween(0.f, 100.f, 1.f, Val);
+    Subsystem->RegisterTween(TweenInst);
+    TestEqual(TEXT("Active tween in subsystem before sequence attach"), Subsystem->GetActiveTweenCount(), 1);
+
+    TSharedPtr<FTweenSequence> Seq = MakeShared<FTweenSequence>();
+    FTweenSequenceHandle SeqHandle(Seq);
+    FTweenHandle TweenHandle(TweenInst);
+
+    SeqHandle.Append(TweenHandle);
+
+    TestEqual(TEXT("Active tween count becomes 0 after sequence attach"), Subsystem->GetActiveTweenCount(), 0);
+    TestEqual(TEXT("Action count in sequence is 1"), Seq->Actions.Num(), 1);
+    TestTrue(TEXT("Attached action instance matches"), Seq->Actions[0].TweenInstance == TweenInst);
+    TestTrue(TEXT("Owning subsystem cleared on instance"), !TweenInst->OwningSubsystem.IsValid());
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenNestedSubSequenceTest,
+    "UTween.Sequence.NestedSubSequenceExecution", UTWEEN_TEST_FLAGS)
+
+bool FUTweenNestedSubSequenceTest::RunTest(const FString& Parameters)
+{
+    float A = 0.f;
+    float B = 0.f;
+    float C = 0.f;
+
+    auto T1 = MakeFloatTween(0.f, 100.f, 0.5f, A);
+    auto T2 = MakeFloatTween(0.f, 100.f, 0.5f, B);
+    auto T3 = MakeFloatTween(0.f, 100.f, 0.5f, C);
+
+    // Child sequence has T1 and T2 sequentially: total duration 1.0s
+    TSharedPtr<FTweenSequence> ChildSeq = MakeShared<FTweenSequence>();
+    FTweenSequenceHandle ChildHandle(ChildSeq);
+    ChildHandle.Append(FTweenHandle(T1));
+    ChildHandle.Append(FTweenHandle(T2));
+    TestEqual(TEXT("Child sequence duration"), ChildSeq->TotalDuration, 1.0f, FloatTolerance);
+
+    // Parent sequence has ChildSeq, then T3: total duration 1.5s
+    TSharedPtr<FTweenSequence> ParentSeq = MakeShared<FTweenSequence>();
+    FTweenSequenceHandle ParentHandle(ParentSeq);
+    ParentHandle.Append(ChildHandle);
+    ParentHandle.Append(FTweenHandle(T3));
+    TestEqual(TEXT("Parent sequence duration"), ParentSeq->TotalDuration, 1.5f, FloatTolerance);
+
+    ParentSeq->State = ETweenState::Playing;
+
+    // Tick 0.5s: Child's T1 completes (100%), T2 at 0%, T3 at 0%
+    ParentSeq->Tick(0.5f);
+    TestEqual(TEXT("T1 completes at 0.5s"), A, 100.f, FloatTolerance);
+    TestEqual(TEXT("T2 at 0% at 0.5s"), B, 0.f, FloatTolerance);
+    TestEqual(TEXT("T3 at 0% at 0.5s"), C, 0.f, FloatTolerance);
+
+    // Tick 0.5s: Child's T2 completes (100%), Child completes, T3 starts at 0%
+    ParentSeq->Tick(0.5f);
+    TestEqual(TEXT("T2 completes at 1.0s"), B, 100.f, FloatTolerance);
+    TestTrue(TEXT("Child sequence completes"), ChildSeq->IsComplete());
+    TestEqual(TEXT("T3 at 0% at 1.0s"), C, 0.f, FloatTolerance);
+
+    // Tick 0.5s: T3 completes (100%), Parent completes
+    ParentSeq->Tick(0.5f);
+    TestEqual(TEXT("T3 completes at 1.5s"), C, 100.f, FloatTolerance);
+    TestTrue(TEXT("Parent sequence completes"), ParentSeq->IsComplete());
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenNestedSubSequencePauseTest,
+    "UTween.Sequence.NestedSubSequencePauseCascade", UTWEEN_TEST_FLAGS)
+
+bool FUTweenNestedSubSequencePauseTest::RunTest(const FString& Parameters)
+{
+    float A = 0.f;
+    auto T1 = MakeFloatTween(0.f, 100.f, 1.f, A);
+
+    TSharedPtr<FTweenSequence> ChildSeq = MakeShared<FTweenSequence>();
+    FTweenSequenceHandle ChildHandle(ChildSeq);
+    ChildHandle.Append(FTweenHandle(T1));
+
+    TSharedPtr<FTweenSequence> ParentSeq = MakeShared<FTweenSequence>();
+    FTweenSequenceHandle ParentHandle(ParentSeq);
+    ParentHandle.Append(ChildHandle);
+
+    ParentSeq->State = ETweenState::Playing;
+    ParentSeq->Tick(0.25f);
+    TestEqual(TEXT("T1 at 25%"), A, 25.f, FloatTolerance);
+
+    ParentSeq->Pause();
+    TestEqual(TEXT("Parent paused"), ParentSeq->State, ETweenState::Paused);
+    TestEqual(TEXT("Child paused by cascade"), ChildSeq->State, ETweenState::Paused);
+
+    ParentSeq->Tick(0.25f);
+    TestEqual(TEXT("No progress while paused"), A, 25.f, FloatTolerance);
+
+    ParentSeq->Resume();
+    TestEqual(TEXT("Parent resumed"), ParentSeq->State, ETweenState::Playing);
+    TestEqual(TEXT("Child resumed by cascade"), ChildSeq->State, ETweenState::Playing);
+
+    ParentSeq->Tick(0.25f);
+    TestEqual(TEXT("Progress after resume"), A, 50.f, FloatTolerance);
+
+    ParentSeq->Kill();
+    TestTrue(TEXT("Parent killed"), ParentSeq->IsKilled());
+    TestTrue(TEXT("Child killed by cascade"), ChildSeq->IsKilled());
+
     return true;
 }
 

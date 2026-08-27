@@ -147,7 +147,7 @@ FBPTweenHandle UTweenBlueprintLibrary::TweenFloat(
     const FOnTweenFloatUpdate& OnUpdate, ETweenEase Ease)
 {
     FOnTweenFloatUpdate DelegateCopy = OnUpdate;
-    FTweenHandle Handle = UTween::Value(From, To, Duration,
+    FTweenHandle Handle = UTween::Value(WorldContextObject, From, To, Duration,
         [DelegateCopy](float V)
         {
             DelegateCopy.ExecuteIfBound(V);
@@ -160,7 +160,7 @@ FBPTweenHandle UTweenBlueprintLibrary::TweenVector(
     const FOnTweenVectorUpdate& OnUpdate, ETweenEase Ease)
 {
     FOnTweenVectorUpdate DelegateCopy = OnUpdate;
-    FTweenHandle Handle = UTween::Value(From, To, Duration,
+    FTweenHandle Handle = UTween::Value(WorldContextObject, From, To, Duration,
         [DelegateCopy](const FVector& V)
         {
             DelegateCopy.ExecuteIfBound(V);
@@ -173,7 +173,7 @@ FBPTweenHandle UTweenBlueprintLibrary::TweenColor(
     const FOnTweenColorUpdate& OnUpdate, ETweenEase Ease)
 {
     FOnTweenColorUpdate DelegateCopy = OnUpdate;
-    FTweenHandle Handle = UTween::Value(From, To, Duration,
+    FTweenHandle Handle = UTween::Value(WorldContextObject, From, To, Duration,
         [DelegateCopy](const FLinearColor& V)
         {
             DelegateCopy.ExecuteIfBound(V);
@@ -208,7 +208,7 @@ bool UTweenBlueprintLibrary::IsTweenPlaying(UObject* WorldContextObject, FBPTwee
 
 FBPTweenSequenceHandle UTweenBlueprintLibrary::CreateTweenSequence(UObject* WorldContextObject)
 {
-    return FBPTweenSequenceHandle(UTween::Sequence());
+    return FBPTweenSequenceHandle(UTween::Sequence(WorldContextObject));
 }
 
 FBPTweenSequenceHandle UTweenBlueprintLibrary::AppendToSequence(

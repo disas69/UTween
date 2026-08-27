@@ -28,20 +28,40 @@ public:
     static FTweenHandle Value(
         float From, float To, float Duration,
         TFunction<void(float)> OnUpdate);
+    static FTweenHandle Value(
+        const UObject* WorldContext,
+        float From, float To, float Duration,
+        TFunction<void(float)> OnUpdate);
 
     static FTweenHandle Value(
+        const FVector2D& From, const FVector2D& To, float Duration,
+        TFunction<void(const FVector2D&)> OnUpdate);
+    static FTweenHandle Value(
+        const UObject* WorldContext,
         const FVector2D& From, const FVector2D& To, float Duration,
         TFunction<void(const FVector2D&)> OnUpdate);
 
     static FTweenHandle Value(
         const FVector& From, const FVector& To, float Duration,
         TFunction<void(const FVector&)> OnUpdate);
+    static FTweenHandle Value(
+        const UObject* WorldContext,
+        const FVector& From, const FVector& To, float Duration,
+        TFunction<void(const FVector&)> OnUpdate);
 
     static FTweenHandle Value(
         const FRotator& From, const FRotator& To, float Duration,
         TFunction<void(const FRotator&)> OnUpdate);
+    static FTweenHandle Value(
+        const UObject* WorldContext,
+        const FRotator& From, const FRotator& To, float Duration,
+        TFunction<void(const FRotator&)> OnUpdate);
 
     static FTweenHandle Value(
+        const FLinearColor& From, const FLinearColor& To, float Duration,
+        TFunction<void(const FLinearColor&)> OnUpdate);
+    static FTweenHandle Value(
+        const UObject* WorldContext,
         const FLinearColor& From, const FLinearColor& To, float Duration,
         TFunction<void(const FLinearColor&)> OnUpdate);
 
@@ -87,14 +107,15 @@ public:
     template <typename TObj, typename TValue, typename TCallable>
     static FTweenHandle ValueMember(TObj* Obj, TValue From, TValue To, float Duration, TCallable&& Callback);
 
-    static FTweenSequenceHandle Sequence();
+    static FTweenSequenceHandle Sequence(const UObject* WorldContext = nullptr);
 
-    /** Resolve the active subsystem with a GEngine-world-contexts fallback. */
-    static UTweenSubsystem* GetSubsystem();
+    /** Resolve the active subsystem with world context awareness and GEngine fallback. */
+    static UTweenSubsystem* GetSubsystem(const UObject* WorldContext = nullptr);
 
 private:
     template <typename T>
     static FTweenHandle CreateValueTween(
+        const UObject* WorldContext,
         const T& From, const T& To, float Duration,
         TFunction<void(const T&)> OnUpdate,
         const TCHAR* MethodName);
@@ -118,7 +139,16 @@ FTweenHandle UTween::ValueMember(TObj* Obj, TValue From, TValue To, float Durati
         return FTweenHandle();
     }
 
-    UTweenSubsystem* Subsystem = GetSubsystem();
+    constexpr bool bIsMember = std::is_member_function_pointer_v<std::decay_t<TCallable>>;
+    constexpr bool bIsUObj = TIsDerivedFrom<TObj, UObject>::Value;
+
+    const UObject* WorldContext = nullptr;
+    if constexpr (bIsUObj)
+    {
+        WorldContext = Obj;
+    }
+
+    UTweenSubsystem* Subsystem = GetSubsystem(WorldContext);
     if (!Subsystem)
     {
         UE_LOG(LogUTween, Warning, TEXT("UTween::ValueMember called with no active subsystem; returning invalid handle."));
@@ -142,9 +172,6 @@ FTweenHandle UTween::ValueMember(TObj* Obj, TValue From, TValue To, float Durati
             return FMath::Lerp(A, B, Alpha);
         };
     }
-
-    constexpr bool bIsMember = std::is_member_function_pointer_v<std::decay_t<TCallable>>;
-    constexpr bool bIsUObj = TIsDerivedFrom<TObj, UObject>::Value;
 
     if constexpr (bIsUObj)
     {

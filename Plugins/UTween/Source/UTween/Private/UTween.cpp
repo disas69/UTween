@@ -13,9 +13,51 @@
 #include "Components/Widget.h"
 #include "Blueprint/UserWidget.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "UObject/UObjectIterator.h"
 
-UTweenSubsystem* UTween::GetSubsystem()
+UTweenSubsystem* UTween::GetSubsystem(const UObject* WorldContext)
 {
+    if (WorldContext)
+    {
+        if (const UTweenSubsystem* DirectSub = Cast<UTweenSubsystem>(WorldContext))
+        {
+            return const_cast<UTweenSubsystem*>(DirectSub);
+        }
+
+        const UGameInstance* TargetGI = Cast<UGameInstance>(WorldContext);
+        if (!TargetGI && GEngine)
+        {
+            if (const UWorld* World = GEngine->GetWorldFromContextObject(WorldContext, EGetWorldErrorMode::ReturnNull))
+            {
+                TargetGI = World->GetGameInstance();
+            }
+        }
+        if (!TargetGI)
+        {
+            TargetGI = WorldContext->GetTypedOuter<UGameInstance>();
+        }
+
+        if (TargetGI)
+        {
+            if (UTweenSubsystem* Sub = TargetGI->GetSubsystem<UTweenSubsystem>())
+            {
+                return Sub;
+            }
+            for (TObjectIterator<UTweenSubsystem> It; It; ++It)
+            {
+                if (It->GetOuter() == TargetGI || It->GetGameInstance() == TargetGI)
+                {
+                    return *It;
+                }
+            }
+        }
+
+        if (UTweenSubsystem* Sub = UTweenSubsystem::Get(WorldContext))
+        {
+            return Sub;
+        }
+    }
+
     if (!GEngine)
     {
         return nullptr;
@@ -57,11 +99,12 @@ UTweenSubsystem* UTween::GetSubsystem()
 
 template <typename T>
 FTweenHandle UTween::CreateValueTween(
+    const UObject* WorldContext,
     const T& From, const T& To, float Duration,
     TFunction<void(const T&)> OnUpdate,
     const TCHAR* MethodName)
 {
-    UTweenSubsystem* Subsystem = GetSubsystem();
+    UTweenSubsystem* Subsystem = GetSubsystem(WorldContext);
     if (!Subsystem)
     {
         UE_LOG(LogUTween, Warning, TEXT("UTween::%s called with no active subsystem; returning invalid handle."), MethodName);
@@ -94,6 +137,12 @@ FTweenHandle UTween::CreateValueTween(
 FTweenHandle UTween::Value(float From, float To, float Duration,
     TFunction<void(float)> OnUpdate)
 {
+    return Value(nullptr, From, To, Duration, MoveTemp(OnUpdate));
+}
+
+FTweenHandle UTween::Value(const UObject* WorldContext, float From, float To, float Duration,
+    TFunction<void(float)> OnUpdate)
+{
     // Adapt scalar callback to the (const T&) signature used by CreateValueTween.
     TFunction<void(const float&)> Wrapped = [Cb = MoveTemp(OnUpdate)](const float& V)
     {
@@ -102,31 +151,55 @@ FTweenHandle UTween::Value(float From, float To, float Duration,
             Cb(V);
         }
     };
-    return CreateValueTween<float>(From, To, Duration, MoveTemp(Wrapped), TEXT("Value<float>"));
+    return CreateValueTween<float>(WorldContext, From, To, Duration, MoveTemp(Wrapped), TEXT("Value<float>"));
 }
 
 FTweenHandle UTween::Value(const FVector2D& From, const FVector2D& To, float Duration,
     TFunction<void(const FVector2D&)> OnUpdate)
 {
-    return CreateValueTween<FVector2D>(From, To, Duration, MoveTemp(OnUpdate), TEXT("Value<FVector2D>"));
+    return Value(nullptr, From, To, Duration, MoveTemp(OnUpdate));
+}
+
+FTweenHandle UTween::Value(const UObject* WorldContext, const FVector2D& From, const FVector2D& To, float Duration,
+    TFunction<void(const FVector2D&)> OnUpdate)
+{
+    return CreateValueTween<FVector2D>(WorldContext, From, To, Duration, MoveTemp(OnUpdate), TEXT("Value<FVector2D>"));
 }
 
 FTweenHandle UTween::Value(const FVector& From, const FVector& To, float Duration,
     TFunction<void(const FVector&)> OnUpdate)
 {
-    return CreateValueTween<FVector>(From, To, Duration, MoveTemp(OnUpdate), TEXT("Value<FVector>"));
+    return Value(nullptr, From, To, Duration, MoveTemp(OnUpdate));
+}
+
+FTweenHandle UTween::Value(const UObject* WorldContext, const FVector& From, const FVector& To, float Duration,
+    TFunction<void(const FVector&)> OnUpdate)
+{
+    return CreateValueTween<FVector>(WorldContext, From, To, Duration, MoveTemp(OnUpdate), TEXT("Value<FVector>"));
 }
 
 FTweenHandle UTween::Value(const FRotator& From, const FRotator& To, float Duration,
     TFunction<void(const FRotator&)> OnUpdate)
 {
-    return CreateValueTween<FRotator>(From, To, Duration, MoveTemp(OnUpdate), TEXT("Value<FRotator>"));
+    return Value(nullptr, From, To, Duration, MoveTemp(OnUpdate));
+}
+
+FTweenHandle UTween::Value(const UObject* WorldContext, const FRotator& From, const FRotator& To, float Duration,
+    TFunction<void(const FRotator&)> OnUpdate)
+{
+    return CreateValueTween<FRotator>(WorldContext, From, To, Duration, MoveTemp(OnUpdate), TEXT("Value<FRotator>"));
 }
 
 FTweenHandle UTween::Value(const FLinearColor& From, const FLinearColor& To, float Duration,
     TFunction<void(const FLinearColor&)> OnUpdate)
 {
-    return CreateValueTween<FLinearColor>(From, To, Duration, MoveTemp(OnUpdate), TEXT("Value<FLinearColor>"));
+    return Value(nullptr, From, To, Duration, MoveTemp(OnUpdate));
+}
+
+FTweenHandle UTween::Value(const UObject* WorldContext, const FLinearColor& From, const FLinearColor& To, float Duration,
+    TFunction<void(const FLinearColor&)> OnUpdate)
+{
+    return CreateValueTween<FLinearColor>(WorldContext, From, To, Duration, MoveTemp(OnUpdate), TEXT("Value<FLinearColor>"));
 }
 
 template <typename TValue>
@@ -145,7 +218,7 @@ FTweenHandle UTween::CreateTargetTween(
         return FTweenHandle();
     }
 
-    UTweenSubsystem* Subsystem = GetSubsystem();
+    UTweenSubsystem* Subsystem = GetSubsystem(Target);
     if (!Subsystem)
     {
         UE_LOG(LogUTween, Warning, TEXT("UTween::%s called with no active subsystem; returning invalid handle."), MethodName);
@@ -534,9 +607,9 @@ FTweenHandle UTween::Color(UWidget* Target, const FLinearColor& From, const FLin
     return WidgetColor(Target, To, Duration).From(From);
 }
 
-FTweenSequenceHandle UTween::Sequence()
+FTweenSequenceHandle UTween::Sequence(const UObject* WorldContext)
 {
-    UTweenSubsystem* Subsystem = GetSubsystem();
+    UTweenSubsystem* Subsystem = GetSubsystem(WorldContext);
     if (!Subsystem)
     {
         UE_LOG(LogUTween, Warning, TEXT("UTween::Sequence called with no active subsystem; returning invalid handle."));

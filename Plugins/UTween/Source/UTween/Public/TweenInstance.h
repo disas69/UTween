@@ -27,6 +27,7 @@ FORCEINLINE uint64 GetTweenValueTypeHash()
 }
 
 class FTweenSequence;
+class UTweenSubsystem;
 
 /** Abstract base for all tween instances, agnostic of the value type being tweened. */
 
@@ -64,6 +65,7 @@ public:
 
     TWeakObjectPtr<UObject> BoundTarget;
     bool bHasTarget = false;
+    TWeakObjectPtr<UTweenSubsystem> OwningSubsystem;
 
     uint64 ValueTypeHash = 0;
 

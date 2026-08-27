@@ -4,6 +4,7 @@
 #include "TweenSequence.h"
 #include "TweenHandle.h"
 #include "Engine/GameInstance.h"
+#include "Engine/World.h"
 #include "Misc/App.h"
 #include "Stats/Stats.h"
 
@@ -92,6 +93,7 @@ TSharedPtr<FTweenInstanceBase> UTweenSubsystem::RegisterTween(TSharedPtr<FTweenI
         Instance->State = ETweenState::Pending;
     }
 
+    Instance->OwningSubsystem = this;
     ActiveTweens.Add(Instance);
     return Instance;
 }
@@ -130,6 +132,28 @@ TSharedPtr<FTweenInstanceBase> UTweenSubsystem::DetachTween(FTweenId Id)
     return nullptr;
 }
 
+TSharedPtr<FTweenSequence> UTweenSubsystem::DetachSequence(FTweenId Id)
+{
+    for (int32 Index = 0; Index < ActiveSequences.Num(); ++Index)
+    {
+        const TSharedPtr<FTweenSequence>& Seq = ActiveSequences[Index];
+        if (Seq.IsValid() && Seq->Id == Id)
+        {
+            TSharedPtr<FTweenSequence> Detached = Seq;
+            if (bIsTicking)
+            {
+                ActiveSequences[Index] = nullptr;
+            }
+            else
+            {
+                ActiveSequences.RemoveAt(Index);
+            }
+            return Detached;
+        }
+    }
+    return nullptr;
+}
+
 TSharedPtr<FTweenSequence> UTweenSubsystem::RegisterSequence(TSharedPtr<FTweenSequence> Sequence)
 {
     if (!Sequence.IsValid())
@@ -142,6 +166,7 @@ TSharedPtr<FTweenSequence> UTweenSubsystem::RegisterSequence(TSharedPtr<FTweenSe
         Sequence->Id = FTweenId::Generate();
     }
 
+    Sequence->OwningSubsystem = this;
     ActiveSequences.Add(Sequence);
     return Sequence;
 }
@@ -310,9 +335,23 @@ void UTweenSubsystem::Tick(float DeltaTime)
 
     TGuardValue<bool> TickingGuard(bIsTicking, true);
 
-    // FTSTicker delta is world-dilated (GameTime); FApp::GetDeltaTime() is unscaled (RealTime).
-    const float GameDelta = DeltaTime;
-    const float RealDelta = static_cast<float>(FApp::GetDeltaTime());
+    const UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr;
+
+    float GameDelta = DeltaTime;
+    if (World)
+    {
+        if (World->IsPaused())
+        {
+            GameDelta = 0.f;
+        }
+        else if (World->GetDeltaSeconds() > 0.f)
+        {
+            GameDelta = World->GetDeltaSeconds();
+        }
+    }
+
+    const float AppDelta = static_cast<float>(FApp::GetDeltaTime());
+    const float RealDelta = (AppDelta > 0.f) ? AppDelta : DeltaTime;
 
     // Snapshot count so newly-registered entries defer to the next frame.
     const int32 TweenCount = ActiveTweens.Num();
