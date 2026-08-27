@@ -527,7 +527,21 @@ FTweenSequenceHandle& FTweenSequenceHandle::SetTag(FTweenTag InTag)
 {
     if (FTweenSequence* Seq = Pin())
     {
-        Seq->Tag = InTag;
+        if (Seq->Tag != InTag)
+        {
+            if (UTweenSubsystem* Subsystem = Seq->OwningSubsystem.Get())
+            {
+                if (Seq->Tag.IsValid())
+                {
+                    Subsystem->UnregisterSequenceTag(Seq->Tag, Seq);
+                }
+                if (InTag.IsValid())
+                {
+                    Subsystem->RegisterSequenceTag(InTag, Seq);
+                }
+            }
+            Seq->Tag = InTag;
+        }
     }
     return *this;
 }

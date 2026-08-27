@@ -61,6 +61,11 @@ public:
     void ResumeByTag(FTweenTag Tag);
     void KillByTag(FTweenTag Tag);
 
+    void RegisterTweenTag(FTweenTag Tag, FTweenInstanceBase* Tween);
+    void UnregisterTweenTag(FTweenTag Tag, FTweenInstanceBase* Tween);
+    void RegisterSequenceTag(FTweenTag Tag, FTweenSequence* Sequence);
+    void UnregisterSequenceTag(FTweenTag Tag, FTweenSequence* Sequence);
+
     int32 GetActiveTweenCount() const;
     int32 GetActiveSequenceCount() const;
     /** Ticks all active tweens and sequences. Called by FTSTicker, or directly by automation tests. */
@@ -73,6 +78,9 @@ private:
 
     TArray<TSharedPtr<FTweenInstanceBase>> ActiveTweens;
     TArray<TSharedPtr<FTweenSequence>> ActiveSequences;
+
+    TMap<FTweenTag, TArray<FTweenInstanceBase*>> TaggedTweens;
+    TMap<FTweenTag, TArray<FTweenSequence*>> TaggedSequences;
 
     TArray<TSharedPtr<TTweenInstance<float>>> FloatPool;
     TArray<TSharedPtr<TTweenInstance<FVector2D>>> Vector2DPool;

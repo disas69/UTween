@@ -102,6 +102,12 @@ TSharedPtr<FTweenInstanceBase> UTweenSubsystem::RegisterTween(TSharedPtr<FTweenI
 
     Instance->OwningSubsystem = this;
     ActiveTweens.Add(Instance);
+
+    if (Instance->Tag.IsValid())
+    {
+        RegisterTweenTag(Instance->Tag, Instance.Get());
+    }
+
     return Instance;
 }
 
@@ -125,6 +131,10 @@ TSharedPtr<FTweenInstanceBase> UTweenSubsystem::DetachTween(FTweenId Id)
         if (Tween.IsValid() && Tween->Id == Id)
         {
             TSharedPtr<FTweenInstanceBase> Detached = Tween;
+            if (Detached->Tag.IsValid())
+            {
+                UnregisterTweenTag(Detached->Tag, Detached.Get());
+            }
             if (bIsTicking)
             {
                 ActiveTweens[Index] = nullptr;
@@ -147,6 +157,10 @@ TSharedPtr<FTweenSequence> UTweenSubsystem::DetachSequence(FTweenId Id)
         if (Seq.IsValid() && Seq->Id == Id)
         {
             TSharedPtr<FTweenSequence> Detached = Seq;
+            if (Detached->Tag.IsValid())
+            {
+                UnregisterSequenceTag(Detached->Tag, Detached.Get());
+            }
             if (bIsTicking)
             {
                 ActiveSequences[Index] = nullptr;
@@ -175,6 +189,12 @@ TSharedPtr<FTweenSequence> UTweenSubsystem::RegisterSequence(TSharedPtr<FTweenSe
 
     Sequence->OwningSubsystem = this;
     ActiveSequences.Add(Sequence);
+
+    if (Sequence->Tag.IsValid())
+    {
+        RegisterSequenceTag(Sequence->Tag, Sequence.Get());
+    }
+
     return Sequence;
 }
 
@@ -239,59 +259,99 @@ void UTweenSubsystem::KillAll()
         }
         ActiveTweens.Reset();
         ActiveSequences.Reset();
+        TaggedTweens.Reset();
+        TaggedSequences.Reset();
     }
 }
 
 void UTweenSubsystem::PauseByTag(FTweenTag Tag)
 {
-    for (const TSharedPtr<FTweenInstanceBase>& Tween : ActiveTweens)
+    if (!Tag.IsValid())
     {
-        if (Tween.IsValid() && Tween->Tag == Tag)
+        return;
+    }
+
+    if (TArray<FTweenInstanceBase*>* Bucket = TaggedTweens.Find(Tag))
+    {
+        for (FTweenInstanceBase* Tween : *Bucket)
         {
-            Tween->Pause();
+            if (Tween && !Tween->IsKilled())
+            {
+                Tween->Pause();
+            }
         }
     }
-    for (const TSharedPtr<FTweenSequence>& Seq : ActiveSequences)
+
+    if (TArray<FTweenSequence*>* SeqBucket = TaggedSequences.Find(Tag))
     {
-        if (Seq.IsValid() && Seq->Tag == Tag)
+        for (FTweenSequence* Seq : *SeqBucket)
         {
-            Seq->Pause();
+            if (Seq && !Seq->IsKilled())
+            {
+                Seq->Pause();
+            }
         }
     }
 }
 
 void UTweenSubsystem::ResumeByTag(FTweenTag Tag)
 {
-    for (const TSharedPtr<FTweenInstanceBase>& Tween : ActiveTweens)
+    if (!Tag.IsValid())
     {
-        if (Tween.IsValid() && Tween->Tag == Tag)
+        return;
+    }
+
+    if (TArray<FTweenInstanceBase*>* Bucket = TaggedTweens.Find(Tag))
+    {
+        for (FTweenInstanceBase* Tween : *Bucket)
         {
-            Tween->Resume();
+            if (Tween && !Tween->IsKilled())
+            {
+                Tween->Resume();
+            }
         }
     }
-    for (const TSharedPtr<FTweenSequence>& Seq : ActiveSequences)
+
+    if (TArray<FTweenSequence*>* SeqBucket = TaggedSequences.Find(Tag))
     {
-        if (Seq.IsValid() && Seq->Tag == Tag)
+        for (FTweenSequence* Seq : *SeqBucket)
         {
-            Seq->Resume();
+            if (Seq && !Seq->IsKilled())
+            {
+                Seq->Resume();
+            }
         }
     }
 }
 
 void UTweenSubsystem::KillByTag(FTweenTag Tag)
 {
-    for (const TSharedPtr<FTweenInstanceBase>& Tween : ActiveTweens)
+    if (!Tag.IsValid())
     {
-        if (Tween.IsValid() && Tween->Tag == Tag)
+        return;
+    }
+
+    if (TArray<FTweenInstanceBase*>* Bucket = TaggedTweens.Find(Tag))
+    {
+        TArray<FTweenInstanceBase*> TweensToKill = *Bucket;
+        for (FTweenInstanceBase* Tween : TweensToKill)
         {
-            Tween->Kill();
+            if (Tween && !Tween->IsKilled())
+            {
+                Tween->Kill();
+            }
         }
     }
-    for (const TSharedPtr<FTweenSequence>& Seq : ActiveSequences)
+
+    if (TArray<FTweenSequence*>* SeqBucket = TaggedSequences.Find(Tag))
     {
-        if (Seq.IsValid() && Seq->Tag == Tag)
+        TArray<FTweenSequence*> SeqsToKill = *SeqBucket;
+        for (FTweenSequence* Seq : SeqsToKill)
         {
-            Seq->Kill();
+            if (Seq && !Seq->IsKilled())
+            {
+                Seq->Kill();
+            }
         }
     }
 }
@@ -418,9 +478,14 @@ void UTweenSubsystem::Tick(float DeltaTime)
             }
         }
 
-        ActiveSequences.RemoveAll([](const TSharedPtr<FTweenSequence>& Seq)
+        ActiveSequences.RemoveAll([this](const TSharedPtr<FTweenSequence>& Seq)
             {
-                return !Seq.IsValid() || Seq->State == ETweenState::Killed || Seq->State == ETweenState::Completed;
+                const bool bDead = !Seq.IsValid() || Seq->State == ETweenState::Killed || Seq->State == ETweenState::Completed;
+                if (bDead && Seq.IsValid() && Seq->Tag.IsValid())
+                {
+                    UnregisterSequenceTag(Seq->Tag, Seq.Get());
+                }
+                return bDead;
             });
     }
 
@@ -435,6 +500,58 @@ void UTweenSubsystem::EmptyPools()
     VectorPool.Reset();
     RotatorPool.Reset();
     LinearColorPool.Reset();
+    TaggedTweens.Reset();
+    TaggedSequences.Reset();
+}
+
+void UTweenSubsystem::RegisterTweenTag(FTweenTag Tag, FTweenInstanceBase* Tween)
+{
+    if (!Tag.IsValid() || !Tween)
+    {
+        return;
+    }
+    TaggedTweens.FindOrAdd(Tag).AddUnique(Tween);
+}
+
+void UTweenSubsystem::UnregisterTweenTag(FTweenTag Tag, FTweenInstanceBase* Tween)
+{
+    if (!Tag.IsValid() || !Tween)
+    {
+        return;
+    }
+    if (TArray<FTweenInstanceBase*>* Bucket = TaggedTweens.Find(Tag))
+    {
+        Bucket->RemoveSwap(Tween);
+        if (Bucket->Num() == 0)
+        {
+            TaggedTweens.Remove(Tag);
+        }
+    }
+}
+
+void UTweenSubsystem::RegisterSequenceTag(FTweenTag Tag, FTweenSequence* Sequence)
+{
+    if (!Tag.IsValid() || !Sequence)
+    {
+        return;
+    }
+    TaggedSequences.FindOrAdd(Tag).AddUnique(Sequence);
+}
+
+void UTweenSubsystem::UnregisterSequenceTag(FTweenTag Tag, FTweenSequence* Sequence)
+{
+    if (!Tag.IsValid() || !Sequence)
+    {
+        return;
+    }
+    if (TArray<FTweenSequence*>* Bucket = TaggedSequences.Find(Tag))
+    {
+        Bucket->RemoveSwap(Sequence);
+        if (Bucket->Num() == 0)
+        {
+            TaggedSequences.Remove(Tag);
+        }
+    }
 }
 
 void UTweenSubsystem::RecycleTween(const TSharedPtr<FTweenInstanceBase>& Instance)
@@ -442,6 +559,11 @@ void UTweenSubsystem::RecycleTween(const TSharedPtr<FTweenInstanceBase>& Instanc
     if (!Instance.IsValid())
     {
         return;
+    }
+
+    if (Instance->Tag.IsValid())
+    {
+        UnregisterTweenTag(Instance->Tag, Instance.Get());
     }
 
     Instance->ResetForPool();

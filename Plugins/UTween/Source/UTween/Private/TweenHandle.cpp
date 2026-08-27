@@ -1,5 +1,6 @@
 #include "TweenHandle.h"
 #include "TweenInstance.h"
+#include "UTweenSubsystem.h"
 #include "UTweenModule.h"
 
 FTweenHandle::FTweenHandle(TSharedPtr<FTweenInstanceBase> InInstance)
@@ -71,7 +72,21 @@ FTweenHandle& FTweenHandle::SetTag(FTweenTag InTag)
 {
     if (FTweenInstanceBase* Inst = Pin())
     {
-        Inst->Tag = InTag;
+        if (Inst->Tag != InTag)
+        {
+            if (UTweenSubsystem* Subsystem = Inst->OwningSubsystem.Get())
+            {
+                if (Inst->Tag.IsValid())
+                {
+                    Subsystem->UnregisterTweenTag(Inst->Tag, Inst);
+                }
+                if (InTag.IsValid())
+                {
+                    Subsystem->RegisterTweenTag(InTag, Inst);
+                }
+            }
+            Inst->Tag = InTag;
+        }
     }
     return *this;
 }
