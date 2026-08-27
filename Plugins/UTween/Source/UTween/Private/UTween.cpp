@@ -139,17 +139,7 @@ FTweenHandle UTween::CreateValueTween(
     Instance->Duration = FMath::Max(0.f, Duration);
     Instance->bUseFrom = true;
     Instance->DebugName = FName(MethodName);
-    Instance->LerpFunc = [](const T& A, const T& B, float Alpha)
-    {
-        return FMath::Lerp(A, B, Alpha);
-    };
-    Instance->ApplyFunc = [Cb = MoveTemp(OnUpdate)](const T& Val)
-    {
-        if (Cb)
-        {
-            Cb(Val);
-        }
-    };
+    Instance->ApplyFunc = MoveTemp(OnUpdate);
 
     Subsystem->RegisterTween(Instance);
     UE_LOG(LogUTween, Verbose, TEXT("UTween::%s created (Id=%lld)"), MethodName, Instance->Id.Value);
@@ -259,13 +249,6 @@ FTweenHandle UTween::CreateTargetTween(
     if (Lerp)
     {
         Instance->LerpFunc = MoveTemp(Lerp);
-    }
-    else
-    {
-        Instance->LerpFunc = [](const TValue& A, const TValue& B, float Alpha)
-        {
-            return FMath::Lerp(A, B, Alpha);
-        };
     }
 
     Subsystem->RegisterTween(Instance);
@@ -607,7 +590,7 @@ FTweenHandle UTween::ActorRotation(AActor* Target, const FRotator& To, float Dur
                 A->SetActorRotation(V);
             }
         },
-        &UTweenLerp::LerpRotator,
+        nullptr,
         TEXT("ActorRotation"));
 }
 
@@ -949,7 +932,7 @@ FTweenHandle UTween::ComponentRelativeRotation(USceneComponent* Target, const FR
                 C->SetRelativeRotation(V);
             }
         },
-        &UTweenLerp::LerpRotator,
+        nullptr,
         TEXT("ComponentRelativeRotation"));
 }
 

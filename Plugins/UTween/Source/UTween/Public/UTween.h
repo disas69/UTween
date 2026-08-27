@@ -170,23 +170,11 @@ FTweenHandle UTween::ValueMember(TObj* Obj, TValue From, TValue To, float Durati
         return FTweenHandle();
     }
 
-    TSharedPtr<TTweenInstance<TValue>> Instance = MakeShared<TTweenInstance<TValue>>();
+    TSharedPtr<TTweenInstance<TValue>> Instance = Subsystem->AcquireTween<TValue>();
     Instance->StartValue = From;
     Instance->EndValue = To;
     Instance->Duration = FMath::Max(0.f, Duration);
     Instance->bUseFrom = true;
-
-    if constexpr (std::is_same_v<TValue, FRotator>)
-    {
-        Instance->LerpFunc = &UTweenLerp::LerpRotator;
-    }
-    else
-    {
-        Instance->LerpFunc = [](const TValue& A, const TValue& B, float Alpha)
-        {
-            return FMath::Lerp(A, B, Alpha);
-        };
-    }
 
     if constexpr (bIsUObj)
     {

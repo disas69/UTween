@@ -92,79 +92,6 @@ protected:
     bool bStartFired = false;
 };
 
-/** Typed tween instance carrying start/end values, lerp, apply, and getter. */
-template <typename T>
-class TTweenInstance : public FTweenInstanceBase
-{
-public:
-    T StartValue{};
-    T EndValue{};
-    T CurrentValue{};
-
-    TFunction<T(const T&, const T&, float)> LerpFunc;
-    TFunction<void(const T&)> ApplyFunc;
-    TFunction<T()> GetterFunc;
-
-    TTweenInstance()
-    {
-        ValueType = TTweenValueTypeTraits<T>::ValueType;
-    }
-
-    virtual void ResetForPool() override
-    {
-        FTweenInstanceBase::ResetForPool();
-        StartValue = T{};
-        EndValue = T{};
-        CurrentValue = T{};
-        LerpFunc = nullptr;
-        ApplyFunc = nullptr;
-        GetterFunc = nullptr;
-    }
-
-protected:
-    virtual void EvaluateAndApply(float Alpha) override
-    {
-        if (LerpFunc)
-        {
-            CurrentValue = LerpFunc(StartValue, EndValue, Alpha);
-        }
-        if (ApplyFunc)
-        {
-            ApplyFunc(CurrentValue);
-        }
-    }
-
-    virtual void CaptureStartValue() override
-    {
-        if (GetterFunc)
-        {
-            StartValue = GetterFunc();
-        }
-    }
-
-    virtual void ApplyRelativeOffset() override
-    {
-        EndValue = StartValue + EndValue;
-    }
-
-    virtual void SwapStartAndEnd() override
-    {
-        Swap(StartValue, EndValue);
-    }
-};
-
-namespace UTweenDefaults
-{
-    template <typename T>
-    TFunction<T(const T&, const T&, float)> MakeLerp()
-    {
-        return [](const T& A, const T& B, float Alpha) -> T
-        {
-            return FMath::Lerp(A, B, Alpha);
-        };
-    }
-}
-
 namespace UTweenLerp
 {
     /**
@@ -205,4 +132,94 @@ namespace UTweenLerp
         return FQuat::Slerp(QA, QB, Alpha).Rotator();
     }
 }
+
+namespace UTweenDefaults
+{
+    template <typename T>
+    FORCEINLINE T DefaultLerp(const T& A, const T& B, float Alpha)
+    {
+        return FMath::Lerp(A, B, Alpha);
+    }
+
+    template <>
+    FORCEINLINE FRotator DefaultLerp<FRotator>(const FRotator& A, const FRotator& B, float Alpha)
+    {
+        return UTweenLerp::LerpRotator(A, B, Alpha);
+    }
+
+    template <typename T>
+    TFunction<T(const T&, const T&, float)> MakeLerp()
+    {
+        return [](const T& A, const T& B, float Alpha) -> T
+        {
+            return DefaultLerp<T>(A, B, Alpha);
+        };
+    }
+}
+
+/** Typed tween instance carrying start/end values, lerp, apply, and getter. */
+template <typename T>
+class TTweenInstance : public FTweenInstanceBase
+{
+public:
+    T StartValue{};
+    T EndValue{};
+    T CurrentValue{};
+
+    TFunction<T(const T&, const T&, float)> LerpFunc;
+    TFunction<void(const T&)> ApplyFunc;
+    TFunction<T()> GetterFunc;
+
+    TTweenInstance()
+    {
+        ValueType = TTweenValueTypeTraits<T>::ValueType;
+    }
+
+    virtual void ResetForPool() override
+    {
+        FTweenInstanceBase::ResetForPool();
+        StartValue = T{};
+        EndValue = T{};
+        CurrentValue = T{};
+        LerpFunc = nullptr;
+        ApplyFunc = nullptr;
+        GetterFunc = nullptr;
+    }
+
+protected:
+    virtual void EvaluateAndApply(float Alpha) override
+    {
+        if (UNLIKELY(LerpFunc != nullptr))
+        {
+            CurrentValue = LerpFunc(StartValue, EndValue, Alpha);
+        }
+        else
+        {
+            CurrentValue = UTweenDefaults::DefaultLerp<T>(StartValue, EndValue, Alpha);
+        }
+
+        if (ApplyFunc)
+        {
+            ApplyFunc(CurrentValue);
+        }
+    }
+
+    virtual void CaptureStartValue() override
+    {
+        if (GetterFunc)
+        {
+            StartValue = GetterFunc();
+        }
+    }
+
+    virtual void ApplyRelativeOffset() override
+    {
+        EndValue = StartValue + EndValue;
+    }
+
+    virtual void SwapStartAndEnd() override
+    {
+        Swap(StartValue, EndValue);
+    }
+};
 
