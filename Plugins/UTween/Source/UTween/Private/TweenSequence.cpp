@@ -53,6 +53,26 @@ void FTweenSequence::Resume()
     }
 }
 
+void FTweenSequence::Restart()
+{
+    Cursor = 0.f;
+    CurrentLoop = 0;
+    for (FSequenceAction& Action : Actions)
+    {
+        Action.bStarted = false;
+        Action.bComplete = false;
+        if (Action.Type == ESequenceActionType::Tween && Action.TweenInstance.IsValid())
+        {
+            Action.TweenInstance->Restart();
+        }
+        else if (Action.Type == ESequenceActionType::SubSequence && Action.SubSequence.IsValid())
+        {
+            Action.SubSequence->Restart();
+        }
+    }
+    State = ETweenState::Playing;
+}
+
 void FTweenSequence::Kill()
 {
     if (State == ETweenState::Killed)
@@ -562,6 +582,14 @@ void FTweenSequenceHandle::Resume()
     if (FTweenSequence* Seq = Pin())
     {
         Seq->Resume();
+    }
+}
+
+void FTweenSequenceHandle::Restart()
+{
+    if (FTweenSequence* Seq = Pin())
+    {
+        Seq->Restart();
     }
 }
 

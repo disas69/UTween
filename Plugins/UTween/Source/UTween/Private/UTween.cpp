@@ -29,11 +29,18 @@ UTweenSubsystem* UTween::GetSubsystem(const UObject* WorldContext)
         }
 
         const UGameInstance* TargetGI = Cast<UGameInstance>(WorldContext);
-        if (!TargetGI && GEngine)
+        if (!TargetGI)
         {
-            if (const UWorld* World = GEngine->GetWorldFromContextObject(WorldContext, EGetWorldErrorMode::ReturnNull))
+            if (const UWorld* DirectWorld = WorldContext->GetWorld())
             {
-                TargetGI = World->GetGameInstance();
+                TargetGI = DirectWorld->GetGameInstance();
+            }
+            else if (GEngine)
+            {
+                if (const UWorld* World = GEngine->GetWorldFromContextObject(WorldContext, EGetWorldErrorMode::ReturnNull))
+                {
+                    TargetGI = World->GetGameInstance();
+                }
             }
         }
         if (!TargetGI)
@@ -64,6 +71,11 @@ UTweenSubsystem* UTween::GetSubsystem(const UObject* WorldContext)
 
     if (!GEngine)
     {
+        TObjectIterator<UTweenSubsystem> FallbackIt;
+        if (FallbackIt)
+        {
+            return *FallbackIt;
+        }
         return nullptr;
     }
 
@@ -96,6 +108,12 @@ UTweenSubsystem* UTween::GetSubsystem(const UObject* WorldContext)
                 return Sub;
             }
         }
+    }
+
+    TObjectIterator<UTweenSubsystem> FinalFallbackIt;
+    if (FinalFallbackIt)
+    {
+        return *FinalFallbackIt;
     }
 
     return nullptr;
@@ -615,6 +633,276 @@ FTweenHandle UTween::ActorScale(AActor* Target, const FVector& To, float Duratio
         },
         nullptr,
         TEXT("ActorScale"));
+}
+
+FTweenHandle UTween::ActorScale(AActor* Target, float UniformScale, float Duration)
+{
+    return ActorScale(Target, FVector(UniformScale), Duration);
+}
+
+FTweenHandle UTween::PunchPosition(AActor* Target, const FVector& Punch, float Duration, int32 Vibrato, float Elasticity)
+{
+    if (!Target)
+    {
+        return FTweenHandle();
+    }
+
+    TWeakObjectPtr<AActor> Weak(Target);
+    const FVector BaseLocation = Target->GetActorLocation();
+
+    return Value(
+        Target, 0.0f, 1.0f, Duration,
+        [Weak, BaseLocation, Punch, Vibrato, Elasticity](float Alpha)
+        {
+            if (AActor* A = Weak.Get())
+            {
+                if (Alpha >= 1.0f)
+                {
+                    A->SetActorLocation(BaseLocation);
+                    return;
+                }
+                const float Decay = (Elasticity <= 0.0f) ? (1.0f - Alpha) : FMath::Pow(FMath::Max(0.0f, 1.0f - Alpha), Elasticity);
+                const float Wave = FMath::Sin(Alpha * Vibrato * UE_PI) * Decay;
+                A->SetActorLocation(BaseLocation + Punch * Wave);
+            }
+        })
+        .SetEase(ETweenEase::Linear)
+        .OnComplete([Weak, BaseLocation]()
+        {
+            if (AActor* A = Weak.Get())
+            {
+                A->SetActorLocation(BaseLocation);
+            }
+        })
+        .OnKill([Weak, BaseLocation]()
+        {
+            if (AActor* A = Weak.Get())
+            {
+                A->SetActorLocation(BaseLocation);
+            }
+        });
+}
+
+FTweenHandle UTween::PunchScale(AActor* Target, const FVector& Punch, float Duration, int32 Vibrato, float Elasticity)
+{
+    if (!Target)
+    {
+        return FTweenHandle();
+    }
+
+    TWeakObjectPtr<AActor> Weak(Target);
+    const FVector BaseScale = Target->GetActorScale3D();
+
+    return Value(
+        Target, 0.0f, 1.0f, Duration,
+        [Weak, BaseScale, Punch, Vibrato, Elasticity](float Alpha)
+        {
+            if (AActor* A = Weak.Get())
+            {
+                if (Alpha >= 1.0f)
+                {
+                    A->SetActorScale3D(BaseScale);
+                    return;
+                }
+                const float Decay = (Elasticity <= 0.0f) ? (1.0f - Alpha) : FMath::Pow(FMath::Max(0.0f, 1.0f - Alpha), Elasticity);
+                const float Wave = FMath::Sin(Alpha * Vibrato * UE_PI) * Decay;
+                A->SetActorScale3D(BaseScale + Punch * Wave);
+            }
+        })
+        .SetEase(ETweenEase::Linear)
+        .OnComplete([Weak, BaseScale]()
+        {
+            if (AActor* A = Weak.Get())
+            {
+                A->SetActorScale3D(BaseScale);
+            }
+        })
+        .OnKill([Weak, BaseScale]()
+        {
+            if (AActor* A = Weak.Get())
+            {
+                A->SetActorScale3D(BaseScale);
+            }
+        });
+}
+
+FTweenHandle UTween::PunchPosition(UWidget* Target, const FVector2D& Punch, float Duration, int32 Vibrato, float Elasticity)
+{
+    if (!Target)
+    {
+        return FTweenHandle();
+    }
+
+    TWeakObjectPtr<UWidget> Weak(Target);
+    const FVector2D BasePos = Target->GetRenderTransform().Translation;
+
+    return Value(
+        Target, 0.0f, 1.0f, Duration,
+        [Weak, BasePos, Punch, Vibrato, Elasticity](float Alpha)
+        {
+            if (UWidget* W = Weak.Get())
+            {
+                if (Alpha >= 1.0f)
+                {
+                    W->SetRenderTranslation(BasePos);
+                    return;
+                }
+                const float Decay = (Elasticity <= 0.0f) ? (1.0f - Alpha) : FMath::Pow(FMath::Max(0.0f, 1.0f - Alpha), Elasticity);
+                const float Wave = FMath::Sin(Alpha * Vibrato * UE_PI) * Decay;
+                W->SetRenderTranslation(BasePos + Punch * Wave);
+            }
+        })
+        .SetEase(ETweenEase::Linear)
+        .OnComplete([Weak, BasePos]()
+        {
+            if (UWidget* W = Weak.Get())
+            {
+                W->SetRenderTranslation(BasePos);
+            }
+        })
+        .OnKill([Weak, BasePos]()
+        {
+            if (UWidget* W = Weak.Get())
+            {
+                W->SetRenderTranslation(BasePos);
+            }
+        });
+}
+
+FTweenHandle UTween::PunchScale(UWidget* Target, const FVector2D& Punch, float Duration, int32 Vibrato, float Elasticity)
+{
+    if (!Target)
+    {
+        return FTweenHandle();
+    }
+
+    TWeakObjectPtr<UWidget> Weak(Target);
+    const FVector2D BaseScale = Target->GetRenderTransform().Scale;
+
+    return Value(
+        Target, 0.0f, 1.0f, Duration,
+        [Weak, BaseScale, Punch, Vibrato, Elasticity](float Alpha)
+        {
+            if (UWidget* W = Weak.Get())
+            {
+                if (Alpha >= 1.0f)
+                {
+                    W->SetRenderScale(BaseScale);
+                    return;
+                }
+                const float Decay = (Elasticity <= 0.0f) ? (1.0f - Alpha) : FMath::Pow(FMath::Max(0.0f, 1.0f - Alpha), Elasticity);
+                const float Wave = FMath::Sin(Alpha * Vibrato * UE_PI) * Decay;
+                W->SetRenderScale(BaseScale + Punch * Wave);
+            }
+        })
+        .SetEase(ETweenEase::Linear)
+        .OnComplete([Weak, BaseScale]()
+        {
+            if (UWidget* W = Weak.Get())
+            {
+                W->SetRenderScale(BaseScale);
+            }
+        })
+        .OnKill([Weak, BaseScale]()
+        {
+            if (UWidget* W = Weak.Get())
+            {
+                W->SetRenderScale(BaseScale);
+            }
+        });
+}
+
+FTweenHandle UTween::ShakePosition(AActor* Target, float Strength, float Duration, int32 Vibrato, float Randomness)
+{
+    if (!Target)
+    {
+        return FTweenHandle();
+    }
+
+    TWeakObjectPtr<AActor> Weak(Target);
+    const FVector BaseLocation = Target->GetActorLocation();
+    const float Freq = static_cast<float>(FMath::Max(1, Vibrato));
+
+    return Value(
+        Target, 0.0f, 1.0f, Duration,
+        [Weak, BaseLocation, Strength, Freq](float Alpha)
+        {
+            if (AActor* A = Weak.Get())
+            {
+                if (Alpha >= 1.0f)
+                {
+                    A->SetActorLocation(BaseLocation);
+                    return;
+                }
+                const float Decay = 1.0f - Alpha;
+                const float WaveX = FMath::Sin(Alpha * Freq * UE_TWO_PI);
+                const float WaveY = FMath::Cos(Alpha * (Freq * 1.37f) * UE_TWO_PI);
+                const float WaveZ = FMath::Sin(Alpha * (Freq * 0.73f) * UE_TWO_PI);
+                const FVector Offset = FVector(WaveX, WaveY, WaveZ) * (Strength * Decay);
+                A->SetActorLocation(BaseLocation + Offset);
+            }
+        })
+        .SetEase(ETweenEase::Linear)
+        .OnComplete([Weak, BaseLocation]()
+        {
+            if (AActor* A = Weak.Get())
+            {
+                A->SetActorLocation(BaseLocation);
+            }
+        })
+        .OnKill([Weak, BaseLocation]()
+        {
+            if (AActor* A = Weak.Get())
+            {
+                A->SetActorLocation(BaseLocation);
+            }
+        });
+}
+
+FTweenHandle UTween::ShakePosition(UWidget* Target, float Strength, float Duration, int32 Vibrato)
+{
+    if (!Target)
+    {
+        return FTweenHandle();
+    }
+
+    TWeakObjectPtr<UWidget> Weak(Target);
+    const FVector2D BasePos = Target->GetRenderTransform().Translation;
+    const float Freq = static_cast<float>(FMath::Max(1, Vibrato));
+
+    return Value(
+        Target, 0.0f, 1.0f, Duration,
+        [Weak, BasePos, Strength, Freq](float Alpha)
+        {
+            if (UWidget* W = Weak.Get())
+            {
+                if (Alpha >= 1.0f)
+                {
+                    W->SetRenderTranslation(BasePos);
+                    return;
+                }
+                const float Decay = 1.0f - Alpha;
+                const float WaveX = FMath::Sin(Alpha * Freq * UE_TWO_PI);
+                const float WaveY = FMath::Cos(Alpha * (Freq * 1.37f) * UE_TWO_PI);
+                const FVector2D Offset = FVector2D(WaveX, WaveY) * (Strength * Decay);
+                W->SetRenderTranslation(BasePos + Offset);
+            }
+        })
+        .SetEase(ETweenEase::Linear)
+        .OnComplete([Weak, BasePos]()
+        {
+            if (UWidget* W = Weak.Get())
+            {
+                W->SetRenderTranslation(BasePos);
+            }
+        })
+        .OnKill([Weak, BasePos]()
+        {
+            if (UWidget* W = Weak.Get())
+            {
+                W->SetRenderTranslation(BasePos);
+            }
+        });
 }
 
 FTweenHandle UTween::ComponentRelativeLocation(USceneComponent* Target, const FVector& To, float Duration)

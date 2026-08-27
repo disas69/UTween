@@ -4,6 +4,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "TweenTypes.h"
 #include "TweenBlueprintTypes.h"
+#include "Engine/LatentActionManager.h"
 #include "UTweenBlueprintLibrary.generated.h"
 
 class UWidget;
@@ -281,4 +282,211 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UTween|Debug",
         meta = (WorldContext = "WorldContextObject"))
     static int32 GetActiveSequenceCount(UObject* WorldContextObject);
+
+    // Handle configuration & fluent setters
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle SetDelay(UObject* WorldContextObject, FBPTweenHandle Handle, float Delay);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle SetLoops(UObject* WorldContextObject, FBPTweenHandle Handle, int32 Count, ETweenLoopMode Mode = ETweenLoopMode::Restart);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle SetEase(UObject* WorldContextObject, FBPTweenHandle Handle, ETweenEase Ease);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle SetRelative(UObject* WorldContextObject, FBPTweenHandle Handle, bool bRelative = true);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle SetTimeMode(UObject* WorldContextObject, FBPTweenHandle Handle, ETweenTimeMode Mode);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle SetTag(UObject* WorldContextObject, FBPTweenHandle Handle, FName Tag);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle FromFloat(UObject* WorldContextObject, FBPTweenHandle Handle, float FromValue);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle FromVector2D(UObject* WorldContextObject, FBPTweenHandle Handle, FVector2D FromValue);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle FromVector(UObject* WorldContextObject, FBPTweenHandle Handle, FVector FromValue);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle FromRotator(UObject* WorldContextObject, FBPTweenHandle Handle, FRotator FromValue);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle FromColor(UObject* WorldContextObject, FBPTweenHandle Handle, FLinearColor FromValue);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject", AutoCreateRefTerm = "Callback"))
+    static FBPTweenHandle OnTweenComplete(UObject* WorldContextObject, FBPTweenHandle Handle, const FOnTweenDynamicCallback& Callback);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject", AutoCreateRefTerm = "Callback"))
+    static FBPTweenHandle OnTweenStart(UObject* WorldContextObject, FBPTweenHandle Handle, const FOnTweenDynamicCallback& Callback);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject", AutoCreateRefTerm = "Callback"))
+    static FBPTweenHandle OnTweenKill(UObject* WorldContextObject, FBPTweenHandle Handle, const FOnTweenDynamicCallback& Callback);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject"))
+    static void PlayTween(UObject* WorldContextObject, FBPTweenHandle Handle);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject"))
+    static void RestartTween(UObject* WorldContextObject, FBPTweenHandle Handle);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Control",
+        meta = (WorldContext = "WorldContextObject"))
+    static void CompleteTween(UObject* WorldContextObject, FBPTweenHandle Handle);
+
+    // Sequence configuration
+    UFUNCTION(BlueprintCallable, Category = "UTween|Sequence",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenSequenceHandle SetSequenceLoops(UObject* WorldContextObject, FBPTweenSequenceHandle Sequence, int32 Count, ETweenLoopMode Mode = ETweenLoopMode::Restart);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Sequence",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenSequenceHandle SetSequenceTimeMode(UObject* WorldContextObject, FBPTweenSequenceHandle Sequence, ETweenTimeMode Mode);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Sequence",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenSequenceHandle SetSequenceTag(UObject* WorldContextObject, FBPTweenSequenceHandle Sequence, FName Tag);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Sequence",
+        meta = (WorldContext = "WorldContextObject", AutoCreateRefTerm = "Callback"))
+    static FBPTweenSequenceHandle OnSequenceComplete(UObject* WorldContextObject, FBPTweenSequenceHandle Sequence, const FOnTweenDynamicCallback& Callback);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Sequence",
+        meta = (WorldContext = "WorldContextObject", AutoCreateRefTerm = "Callback"))
+    static FBPTweenSequenceHandle OnSequenceKill(UObject* WorldContextObject, FBPTweenSequenceHandle Sequence, const FOnTweenDynamicCallback& Callback);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Sequence",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenSequenceHandle AppendSubSequence(UObject* WorldContextObject, FBPTweenSequenceHandle Sequence, FBPTweenSequenceHandle SubSequence);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Sequence",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenSequenceHandle JoinSubSequence(UObject* WorldContextObject, FBPTweenSequenceHandle Sequence, FBPTweenSequenceHandle SubSequence);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Sequence",
+        meta = (WorldContext = "WorldContextObject"))
+    static void RestartSequence(UObject* WorldContextObject, FBPTweenSequenceHandle Sequence);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Sequence",
+        meta = (WorldContext = "WorldContextObject"))
+    static void ResumeSequence(UObject* WorldContextObject, FBPTweenSequenceHandle Sequence);
+
+    // Latent Actions
+    UFUNCTION(BlueprintCallable, Category = "UTween|Latent",
+        meta = (Latent, LatentInfo = "LatentInfo", WorldContext = "WorldContextObject"))
+    static void TweenActorLocationLatent(
+        UObject* WorldContextObject,
+        FLatentActionInfo LatentInfo,
+        AActor* Target,
+        FVector To,
+        float Duration,
+        ETweenEase Ease = ETweenEase::OutQuad);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Latent",
+        meta = (Latent, LatentInfo = "LatentInfo", WorldContext = "WorldContextObject"))
+    static void TweenActorRotationLatent(
+        UObject* WorldContextObject,
+        FLatentActionInfo LatentInfo,
+        AActor* Target,
+        FRotator To,
+        float Duration,
+        ETweenEase Ease = ETweenEase::OutQuad);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Latent",
+        meta = (Latent, LatentInfo = "LatentInfo", WorldContext = "WorldContextObject"))
+    static void TweenActorScaleLatent(
+        UObject* WorldContextObject,
+        FLatentActionInfo LatentInfo,
+        AActor* Target,
+        FVector To,
+        float Duration,
+        ETweenEase Ease = ETweenEase::OutQuad);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Latent",
+        meta = (Latent, LatentInfo = "LatentInfo", WorldContext = "WorldContextObject"))
+    static void TweenWidgetPositionLatent(
+        UObject* WorldContextObject,
+        FLatentActionInfo LatentInfo,
+        UWidget* Target,
+        FVector2D To,
+        float Duration,
+        ETweenEase Ease = ETweenEase::OutQuad);
+
+    // Juice (Punch & Shake)
+    UFUNCTION(BlueprintCallable, Category = "UTween|Juice",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle TweenActorPunchPosition(
+        UObject* WorldContextObject,
+        AActor* Target,
+        FVector Punch,
+        float Duration = 0.5f,
+        int32 Vibrato = 10,
+        float Elasticity = 1.0f);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Juice",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle TweenActorPunchScale(
+        UObject* WorldContextObject,
+        AActor* Target,
+        FVector Punch,
+        float Duration = 0.5f,
+        int32 Vibrato = 10,
+        float Elasticity = 1.0f);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Juice",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle TweenActorShakePosition(
+        UObject* WorldContextObject,
+        AActor* Target,
+        float Strength,
+        float Duration = 0.5f,
+        int32 Vibrato = 10,
+        float Randomness = 90.0f);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Juice",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle TweenWidgetPunchPosition(
+        UObject* WorldContextObject,
+        UWidget* Target,
+        FVector2D Punch,
+        float Duration = 0.5f,
+        int32 Vibrato = 10,
+        float Elasticity = 1.0f);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Juice",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle TweenWidgetPunchScale(
+        UObject* WorldContextObject,
+        UWidget* Target,
+        FVector2D Punch,
+        float Duration = 0.5f,
+        int32 Vibrato = 10,
+        float Elasticity = 1.0f);
+
+    UFUNCTION(BlueprintCallable, Category = "UTween|Juice",
+        meta = (WorldContext = "WorldContextObject"))
+    static FBPTweenHandle TweenWidgetShakePosition(
+        UObject* WorldContextObject,
+        UWidget* Target,
+        float Strength,
+        float Duration = 0.5f,
+        int32 Vibrato = 10);
 };

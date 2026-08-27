@@ -81,6 +81,16 @@ public:
     static FTweenHandle ActorLocation(AActor* Target, const FVector& To, float Duration);
     static FTweenHandle ActorRotation(AActor* Target, const FRotator& To, float Duration);
     static FTweenHandle ActorScale(AActor* Target, const FVector& To, float Duration);
+    static FTweenHandle ActorScale(AActor* Target, float UniformScale, float Duration);
+
+    // Punch & Shake (Juice)
+    static FTweenHandle PunchPosition(AActor* Target, const FVector& Punch, float Duration = 0.5f, int32 Vibrato = 10, float Elasticity = 1.0f);
+    static FTweenHandle PunchScale(AActor* Target, const FVector& Punch, float Duration = 0.5f, int32 Vibrato = 10, float Elasticity = 1.0f);
+    static FTweenHandle PunchPosition(UWidget* Target, const FVector2D& Punch, float Duration = 0.5f, int32 Vibrato = 10, float Elasticity = 1.0f);
+    static FTweenHandle PunchScale(UWidget* Target, const FVector2D& Punch, float Duration = 0.5f, int32 Vibrato = 10, float Elasticity = 1.0f);
+
+    static FTweenHandle ShakePosition(AActor* Target, float Strength, float Duration = 0.5f, int32 Vibrato = 10, float Randomness = 90.0f);
+    static FTweenHandle ShakePosition(UWidget* Target, float Strength, float Duration = 0.5f, int32 Vibrato = 10);
 
     // Components
     static FTweenHandle ComponentRelativeLocation(USceneComponent* Target, const FVector& To, float Duration);

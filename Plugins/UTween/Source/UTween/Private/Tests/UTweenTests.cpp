@@ -10,6 +10,8 @@
 #include "Components/Border.h"
 #include "Components/TextBlock.h"
 #include "Components/CanvasPanelSlot.h"
+#include "UTweenBlueprintLibrary.h"
+#include "GameFramework/Actor.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1029,6 +1031,178 @@ bool FUTweenUMGCanvasSlotTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Slot Position at 100%"), Slot->GetPosition(), FVector2D(200.f, 300.f));
     TestEqual(TEXT("Slot Size at 100%"), Slot->GetSize(), FVector2D(500.f, 600.f));
 
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenBlueprintHandleSettersTest,
+    "UTween.Blueprint.HandleSetters", UTWEEN_TEST_FLAGS)
+
+bool FUTweenBlueprintHandleSettersTest::RunTest(const FString& Parameters)
+{
+    UGameInstance* GI = NewObject<UGameInstance>();
+    UTweenSubsystem* Subsystem = NewObject<UTweenSubsystem>(GI);
+    TestNotNull(TEXT("Subsystem created"), Subsystem);
+
+    float Val = 0.0f;
+    auto UpdateFunc = [&Val](float V) { Val = V; };
+    FTweenHandle RawHandle = UTween::Value(GI, 0.0f, 100.0f, 1.0f, UpdateFunc);
+    FBPTweenHandle BPHandle(RawHandle);
+
+    UTweenBlueprintLibrary::SetDelay(GI, BPHandle, 0.5f);
+    UTweenBlueprintLibrary::SetLoops(GI, BPHandle, 3, ETweenLoopMode::Yoyo);
+    UTweenBlueprintLibrary::SetEase(GI, BPHandle, ETweenEase::InCubic);
+    UTweenBlueprintLibrary::SetRelative(GI, BPHandle, true);
+    UTweenBlueprintLibrary::SetTimeMode(GI, BPHandle, ETweenTimeMode::RealTime);
+    UTweenBlueprintLibrary::SetTag(GI, BPHandle, FName("TestTag"));
+
+    FTweenHandle Resolved = BPHandle.Resolve(GI);
+    TestTrue(TEXT("Resolved valid"), Resolved.IsValid());
+    TSharedPtr<FTweenInstanceBase> Inst = Resolved.GetInstance();
+    TestNotNull(TEXT("Inst valid"), Inst.Get());
+    TestEqual(TEXT("Delay set"), Inst->Delay, 0.5f);
+    TestEqual(TEXT("LoopCount set"), Inst->LoopCount, 3);
+    TestEqual(TEXT("LoopMode set"), Inst->LoopMode, ETweenLoopMode::Yoyo);
+    TestEqual(TEXT("Ease set"), Inst->Ease, ETweenEase::InCubic);
+    TestTrue(TEXT("bIsRelative set"), Inst->bIsRelative);
+    TestEqual(TEXT("TimeMode set"), Inst->TimeMode, ETweenTimeMode::RealTime);
+    TestEqual(TEXT("Tag set"), Inst->Tag.Name, FName("TestTag"));
+
+    // Test CompleteTween
+    UTweenBlueprintLibrary::CompleteTween(GI, BPHandle);
+    TestEqual(TEXT("Value reached 100 on complete"), Val, 100.f, FloatTolerance);
+    TestTrue(TEXT("Tween auto-killed on complete"), Inst->IsKilled());
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenBlueprintSequenceSettersTest,
+    "UTween.Blueprint.SequenceSetters", UTWEEN_TEST_FLAGS)
+
+bool FUTweenBlueprintSequenceSettersTest::RunTest(const FString& Parameters)
+{
+    UGameInstance* GI = NewObject<UGameInstance>();
+    UTweenSubsystem* Subsystem = NewObject<UTweenSubsystem>(GI);
+    TestNotNull(TEXT("Subsystem created"), Subsystem);
+
+    FBPTweenSequenceHandle Seq1 = UTweenBlueprintLibrary::CreateTweenSequence(GI);
+    FBPTweenSequenceHandle Seq2 = UTweenBlueprintLibrary::CreateTweenSequence(GI);
+
+    UTweenBlueprintLibrary::SetSequenceLoops(GI, Seq1, 2, ETweenLoopMode::Restart);
+    UTweenBlueprintLibrary::SetSequenceTimeMode(GI, Seq1, ETweenTimeMode::RealTime);
+    UTweenBlueprintLibrary::SetSequenceTag(GI, Seq1, FName("SeqTag"));
+    UTweenBlueprintLibrary::AppendSubSequence(GI, Seq1, Seq2);
+
+    FTweenSequenceHandle Resolved1 = Seq1.Resolve(GI);
+    TestTrue(TEXT("Seq1 valid"), Resolved1.IsValid());
+    TSharedPtr<FTweenSequence> SeqInst = Resolved1.GetInstance();
+    TestNotNull(TEXT("SeqInst valid"), SeqInst.Get());
+    TestEqual(TEXT("Seq LoopCount set"), SeqInst->LoopCount, 2);
+    TestEqual(TEXT("Seq LoopMode set"), SeqInst->LoopMode, ETweenLoopMode::Restart);
+    TestEqual(TEXT("Seq TimeMode set"), SeqInst->TimeMode, ETweenTimeMode::RealTime);
+    TestEqual(TEXT("Seq Tag set"), SeqInst->Tag.Name, FName("SeqTag"));
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenJuiceWidgetPunchTest,
+    "UTween.Juice.WidgetPunchPositionAndScale", UTWEEN_TEST_FLAGS)
+
+bool FUTweenJuiceWidgetPunchTest::RunTest(const FString& Parameters)
+{
+    UGameInstance* GI = NewObject<UGameInstance>();
+    UTweenSubsystem* Subsystem = NewObject<UTweenSubsystem>(GI);
+    TestNotNull(TEXT("Subsystem created"), Subsystem);
+
+    UImage* Widget = NewObject<UImage>(GI);
+    Widget->SetRenderTranslation(FVector2D(100.f, 200.f));
+    Widget->SetRenderScale(FVector2D(1.f, 1.f));
+
+    FTweenHandle PunchPos = UTween::PunchPosition(Widget, FVector2D(50.f, 0.f), 1.0f);
+    FTweenHandle PunchScale = UTween::PunchScale(Widget, FVector2D(0.5f, 0.5f), 1.0f);
+
+    TestTrue(TEXT("PunchPos valid"), PunchPos.IsValid());
+    TestTrue(TEXT("PunchScale valid"), PunchScale.IsValid());
+
+    // Halfway tick (0.5s)
+    Subsystem->Tick(0.5f);
+    // Complete tick (1.0s) - values must be cleanly restored to initial baseline
+    Subsystem->Tick(0.5f);
+
+    TestEqual(TEXT("PunchPos cleanly restored baseline"), Widget->GetRenderTransform().Translation, FVector2D(100.f, 200.f));
+    TestEqual(TEXT("PunchScale cleanly restored baseline"), Widget->GetRenderTransform().Scale, FVector2D(1.f, 1.f));
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenJuiceWidgetShakeTest,
+    "UTween.Juice.WidgetShakePosition", UTWEEN_TEST_FLAGS)
+
+bool FUTweenJuiceWidgetShakeTest::RunTest(const FString& Parameters)
+{
+    UGameInstance* GI = NewObject<UGameInstance>();
+    UTweenSubsystem* Subsystem = NewObject<UTweenSubsystem>(GI);
+    TestNotNull(TEXT("Subsystem created"), Subsystem);
+
+    UImage* Widget = NewObject<UImage>(GI);
+    Widget->SetRenderTranslation(FVector2D(50.f, 50.f));
+
+    FTweenHandle ShakeHandle = UTween::ShakePosition(Widget, 25.0f, 1.0f);
+    TestTrue(TEXT("ShakeHandle valid"), ShakeHandle.IsValid());
+
+    // During tick, shake displaces
+    Subsystem->Tick(0.25f);
+    TestTrue(TEXT("Widget moved during shake"), Widget->GetRenderTransform().Translation != FVector2D(50.f, 50.f));
+
+    // Finish tween
+    Subsystem->Tick(0.75f);
+    TestEqual(TEXT("Widget restored to base position on complete"), Widget->GetRenderTransform().Translation, FVector2D(50.f, 50.f));
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenActorPunchAndUniformScaleTest,
+    "UTween.Actor.ActorPunchAndUniformScale", UTWEEN_TEST_FLAGS)
+
+bool FUTweenActorPunchAndUniformScaleTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+    if (!World)
+    {
+        return true;
+    }
+
+    UGameInstance* GI = NewObject<UGameInstance>();
+    World->SetGameInstance(GI);
+    UTweenSubsystem* Subsystem = NewObject<UTweenSubsystem>(GI);
+
+    AActor* Actor = World->SpawnActor<AActor>();
+    if (!Actor)
+    {
+        World->DestroyWorld(false);
+        return true;
+    }
+
+    USceneComponent* RootComp = NewObject<USceneComponent>(Actor);
+    Actor->SetRootComponent(RootComp);
+    RootComp->RegisterComponent();
+
+    Actor->SetActorLocation(FVector(100.f, 200.f, 300.f));
+    Actor->SetActorScale3D(FVector(1.f, 1.f, 1.f));
+
+    // Test Uniform ActorScale
+    FTweenHandle ScaleHandle = UTween::ActorScale(Actor, 2.0f, 1.0f).SetEase(ETweenEase::Linear);
+    Subsystem->Tick(0.5f);
+    TestEqual(TEXT("Actor uniform scale at 50%"), Actor->GetActorScale3D(), FVector(1.5f, 1.5f, 1.5f));
+    Subsystem->Tick(0.5f);
+    TestEqual(TEXT("Actor uniform scale at 100%"), Actor->GetActorScale3D(), FVector(2.0f, 2.0f, 2.0f));
+
+    // Test Actor PunchPosition
+    FTweenHandle PunchHandle = UTween::PunchPosition(Actor, FVector(0.f, 0.f, 100.f), 1.0f);
+    Subsystem->Tick(0.5f);
+    Subsystem->Tick(0.5f);
+    TestEqual(TEXT("Actor location restored after punch"), Actor->GetActorLocation(), FVector(100.f, 200.f, 300.f));
+
+    World->DestroyWorld(false);
     return true;
 }
 

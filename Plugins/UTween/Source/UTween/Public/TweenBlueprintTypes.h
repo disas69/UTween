@@ -65,3 +65,4 @@ struct UTWEEN_API FBPTweenSequenceHandle
 DECLARE_DYNAMIC_DELEGATE_OneParam(FOnTweenFloatUpdate, float, Value);
 DECLARE_DYNAMIC_DELEGATE_OneParam(FOnTweenVectorUpdate, FVector, Value);
 DECLARE_DYNAMIC_DELEGATE_OneParam(FOnTweenColorUpdate, FLinearColor, Value);
+DECLARE_DYNAMIC_DELEGATE(FOnTweenDynamicCallback);

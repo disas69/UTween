@@ -64,6 +64,7 @@ public:
     void Play();
     void Pause();
     void Resume();
+    void Restart();
     void Kill();
 
     bool IsComplete() const { return State == ETweenState::Completed; }
@@ -107,6 +108,7 @@ struct UTWEEN_API FTweenSequenceHandle
     FTweenSequenceHandle& Play();
     void Pause();
     void Resume();
+    void Restart();
     void Kill();
 
     bool IsValid() const;
