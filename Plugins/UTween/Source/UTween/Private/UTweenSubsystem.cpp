@@ -7,6 +7,7 @@
 #include "Engine/World.h"
 #include "Misc/App.h"
 #include "Stats/Stats.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 DECLARE_STATS_GROUP(TEXT("UTween"), STATGROUP_UTween, STATCAT_Advanced);
 DECLARE_DWORD_COUNTER_STAT(TEXT("Active Tweens"), STAT_UTween_ActiveTweens, STATGROUP_UTween);
@@ -331,6 +332,7 @@ FTweenSequenceHandle UTweenSubsystem::FindSequenceById(FTweenId Id) const
 
 void UTweenSubsystem::Tick(float DeltaTime)
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(UTween_SubsystemTick);
     SCOPE_CYCLE_COUNTER(STAT_UTween_Tick);
 
     TGuardValue<bool> TickingGuard(bIsTicking, true);
@@ -355,45 +357,54 @@ void UTweenSubsystem::Tick(float DeltaTime)
 
     // Snapshot count so newly-registered entries defer to the next frame.
     const int32 TweenCount = ActiveTweens.Num();
-    for (int32 Index = 0; Index < TweenCount; ++Index)
     {
-        TSharedPtr<FTweenInstanceBase> Tween = ActiveTweens[Index];
-        if (!Tween.IsValid())
+        TRACE_CPUPROFILER_EVENT_SCOPE(UTween_TickTweens);
+        for (int32 Index = 0; Index < TweenCount; ++Index)
         {
-            continue;
-        }
+            TSharedPtr<FTweenInstanceBase> Tween = ActiveTweens[Index];
+            if (!Tween.IsValid())
+            {
+                continue;
+            }
 
-        if (Tween->State == ETweenState::Pending)
-        {
-            Tween->State = ETweenState::Playing;
-        }
+            if (Tween->State == ETweenState::Pending)
+            {
+                Tween->State = ETweenState::Playing;
+            }
 
-        const float EffectiveDelta = (Tween->TimeMode == ETweenTimeMode::RealTime) ? RealDelta : GameDelta;
-        Tween->Tick(EffectiveDelta);
+            const float EffectiveDelta = (Tween->TimeMode == ETweenTimeMode::RealTime) ? RealDelta : GameDelta;
+            Tween->Tick(EffectiveDelta);
+        }
     }
 
     const int32 SeqCount = ActiveSequences.Num();
-    for (int32 Index = 0; Index < SeqCount; ++Index)
     {
-        TSharedPtr<FTweenSequence> Seq = ActiveSequences[Index];
-        if (!Seq.IsValid())
+        TRACE_CPUPROFILER_EVENT_SCOPE(UTween_TickSequences);
+        for (int32 Index = 0; Index < SeqCount; ++Index)
         {
-            continue;
-        }
+            TSharedPtr<FTweenSequence> Seq = ActiveSequences[Index];
+            if (!Seq.IsValid())
+            {
+                continue;
+            }
 
-        const float EffectiveDelta = (Seq->TimeMode == ETweenTimeMode::RealTime) ? RealDelta : GameDelta;
-        Seq->Tick(EffectiveDelta);
+            const float EffectiveDelta = (Seq->TimeMode == ETweenTimeMode::RealTime) ? RealDelta : GameDelta;
+            Seq->Tick(EffectiveDelta);
+        }
     }
 
-    ActiveTweens.RemoveAll([](const TSharedPtr<FTweenInstanceBase>& Tween)
-        {
-            return !Tween.IsValid() || Tween->State == ETweenState::Killed;
-        });
+    {
+        TRACE_CPUPROFILER_EVENT_SCOPE(UTween_Cleanup);
+        ActiveTweens.RemoveAll([](const TSharedPtr<FTweenInstanceBase>& Tween)
+            {
+                return !Tween.IsValid() || Tween->State == ETweenState::Killed;
+            });
 
-    ActiveSequences.RemoveAll([](const TSharedPtr<FTweenSequence>& Seq)
-        {
-            return !Seq.IsValid() || Seq->State == ETweenState::Killed || Seq->State == ETweenState::Completed;
-        });
+        ActiveSequences.RemoveAll([](const TSharedPtr<FTweenSequence>& Seq)
+            {
+                return !Seq.IsValid() || Seq->State == ETweenState::Killed || Seq->State == ETweenState::Completed;
+            });
+    }
 
     SET_DWORD_STAT(STAT_UTween_ActiveTweens, ActiveTweens.Num());
     SET_DWORD_STAT(STAT_UTween_ActiveSequences, ActiveSequences.Num());
