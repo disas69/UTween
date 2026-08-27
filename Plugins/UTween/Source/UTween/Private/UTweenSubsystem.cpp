@@ -361,8 +361,8 @@ void UTweenSubsystem::Tick(float DeltaTime)
         TRACE_CPUPROFILER_EVENT_SCOPE(UTween_TickTweens);
         for (int32 Index = 0; Index < TweenCount; ++Index)
         {
-            TSharedPtr<FTweenInstanceBase> Tween = ActiveTweens[Index];
-            if (!Tween.IsValid())
+            FTweenInstanceBase* Tween = ActiveTweens[Index].Get();
+            if (!Tween)
             {
                 continue;
             }
@@ -382,8 +382,8 @@ void UTweenSubsystem::Tick(float DeltaTime)
         TRACE_CPUPROFILER_EVENT_SCOPE(UTween_TickSequences);
         for (int32 Index = 0; Index < SeqCount; ++Index)
         {
-            TSharedPtr<FTweenSequence> Seq = ActiveSequences[Index];
-            if (!Seq.IsValid())
+            FTweenSequence* Seq = ActiveSequences[Index].Get();
+            if (!Seq)
             {
                 continue;
             }
