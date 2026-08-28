@@ -10,6 +10,6 @@ public class UTweenProject : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "UTween", "UMG" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "UTween", "UMG", "Slate", "SlateCore" });
 	}
 }
