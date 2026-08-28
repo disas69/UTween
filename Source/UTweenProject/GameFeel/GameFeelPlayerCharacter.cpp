@@ -28,38 +28,69 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
         CapsuleComp->SetCollisionProfileName(TEXT("Pawn"));
     }
 
-    VisualMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("VisualMesh"));
-    VisualMesh->SetupAttachment(RootComponent);
-    VisualMesh->SetRelativeLocation(FVector(0.f, 0.f, -65.f));
-    VisualMesh->SetRelativeScale3D(FVector(0.7f, 0.7f, 1.3f));
-    VisualMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    VisualRoot = CreateDefaultSubobject<USceneComponent>(TEXT("VisualRoot"));
+    VisualRoot->SetupAttachment(RootComponent);
+    VisualRoot->SetRelativeLocation(FVector(0.f, 0.f, 0.f));
 
     static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderFinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
-    if (CylinderFinder.Succeeded())
-    {
-        VisualMesh->SetStaticMesh(CylinderFinder.Object);
-    }
-
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereFinder(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeFinder(TEXT("/Engine/BasicShapes/Cube.Cube"));
     static ConstructorHelpers::FObjectFinder<UMaterialInterface> PlayerMatFinder(TEXT("/Game/GameFeel/Materials/MI_GameFeel_Player.MI_GameFeel_Player"));
-    if (PlayerMatFinder.Succeeded())
-    {
-        VisualMesh->SetMaterial(0, PlayerMatFinder.Object);
-    }
+    static ConstructorHelpers::FObjectFinder<UMaterialInterface> SwordMatFinder(TEXT("/Game/GameFeel/Materials/MI_GameFeel_Sword.MI_GameFeel_Sword"));
 
+    // Cylinder body of capsule
+    BodyCylinder = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyCylinder"));
+    BodyCylinder->SetupAttachment(VisualRoot);
+    BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, 0.f));
+    BodyCylinder->SetRelativeScale3D(FVector(0.7f, 0.7f, 0.6f));
+    BodyCylinder->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    if (CylinderFinder.Succeeded()) BodyCylinder->SetStaticMesh(CylinderFinder.Object);
+    if (PlayerMatFinder.Succeeded()) BodyCylinder->SetMaterial(0, PlayerMatFinder.Object);
+
+    // Top cap sphere
+    TopCapSphere = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TopCapSphere"));
+    TopCapSphere->SetupAttachment(VisualRoot);
+    TopCapSphere->SetRelativeLocation(FVector(0.f, 0.f, 30.f));
+    TopCapSphere->SetRelativeScale3D(FVector(0.7f, 0.7f, 0.7f));
+    TopCapSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    if (SphereFinder.Succeeded()) TopCapSphere->SetStaticMesh(SphereFinder.Object);
+    if (PlayerMatFinder.Succeeded()) TopCapSphere->SetMaterial(0, PlayerMatFinder.Object);
+
+    // Bottom cap sphere
+    BottomCapSphere = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BottomCapSphere"));
+    BottomCapSphere->SetupAttachment(VisualRoot);
+    BottomCapSphere->SetRelativeLocation(FVector(0.f, 0.f, -30.f));
+    BottomCapSphere->SetRelativeScale3D(FVector(0.7f, 0.7f, 0.7f));
+    BottomCapSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    if (SphereFinder.Succeeded()) BottomCapSphere->SetStaticMesh(SphereFinder.Object);
+    if (PlayerMatFinder.Succeeded()) BottomCapSphere->SetMaterial(0, PlayerMatFinder.Object);
+
+    // White Nose to clearly indicate forward facing direction
+    NoseMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("NoseMesh"));
+    NoseMesh->SetupAttachment(VisualRoot);
+    NoseMesh->SetRelativeLocation(FVector(32.f, 0.f, 15.f));
+    NoseMesh->SetRelativeScale3D(FVector(0.24f, 0.16f, 0.16f));
+    NoseMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    if (SphereFinder.Succeeded()) NoseMesh->SetStaticMesh(SphereFinder.Object);
+    if (SwordMatFinder.Succeeded()) NoseMesh->SetMaterial(0, SwordMatFinder.Object);
+
+    // Camera Boom
     CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
     CameraBoom->SetupAttachment(RootComponent);
     CameraBoom->SetUsingAbsoluteRotation(true);
-    CameraBoom->TargetArmLength = 800.f;
+    CameraBoom->TargetArmLength = 850.f;
     CameraBoom->SetRelativeRotation(FRotator(-60.f, 0.f, 0.f));
     CameraBoom->bDoCollisionTest = false;
     CameraBoom->bInheritPitch = false;
     CameraBoom->bInheritYaw = false;
     CameraBoom->bInheritRoll = false;
 
+    // Top-Down Camera
     TopDownCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("TopDownCamera"));
     TopDownCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
     TopDownCamera->bUsePawnControlRotation = false;
 
+    // Sword Pivot & Mesh
     SwordPivot = CreateDefaultSubobject<USceneComponent>(TEXT("SwordPivot"));
     SwordPivot->SetupAttachment(RootComponent);
     SwordPivot->SetRelativeLocation(FVector(0.f, 0.f, 0.f));
@@ -69,18 +100,8 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
     SwordMesh->SetRelativeLocation(FVector(55.f, 0.f, 0.f));
     SwordMesh->SetRelativeScale3D(FVector(0.75f, 0.16f, 0.08f));
     SwordMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
-    static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeFinder(TEXT("/Engine/BasicShapes/Cube.Cube"));
-    if (CubeFinder.Succeeded())
-    {
-        SwordMesh->SetStaticMesh(CubeFinder.Object);
-    }
-
-    static ConstructorHelpers::FObjectFinder<UMaterialInterface> SwordMatFinder(TEXT("/Game/GameFeel/Materials/MI_GameFeel_Sword.MI_GameFeel_Sword"));
-    if (SwordMatFinder.Succeeded())
-    {
-        SwordMesh->SetMaterial(0, SwordMatFinder.Object);
-    }
+    if (CubeFinder.Succeeded()) SwordMesh->SetStaticMesh(CubeFinder.Object);
+    if (SwordMatFinder.Succeeded()) SwordMesh->SetMaterial(0, SwordMatFinder.Object);
 
     bUseControllerRotationPitch = false;
     bUseControllerRotationYaw = false;
@@ -91,15 +112,22 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
         MoveComp->bOrientRotationToMovement = false;
         MoveComp->bUseControllerDesiredRotation = false;
         MoveComp->MaxWalkSpeed = 580.f;
-        MoveComp->BrakingDecelerationWalking = 2000.f;
+        MoveComp->BrakingDecelerationWalking = 2400.f;
     }
 
     CurrentHealth = MaxHealth;
+    CurrentRestAngle = RestStanceAngle;
 }
 
 void AGameFeelPlayerCharacter::BeginPlay()
 {
     Super::BeginPlay();
+
+    CurrentRestAngle = RestStanceAngle;
+    if (SwordPivot)
+    {
+        SwordPivot->SetRelativeRotation(FRotator(0.f, CurrentRestAngle, 0.f));
+    }
 }
 
 void AGameFeelPlayerCharacter::Tick(float DeltaTime)
@@ -112,7 +140,7 @@ void AGameFeelPlayerCharacter::Tick(float DeltaTime)
     {
         AttackTimer += DeltaTime;
         const float Alpha = FMath::Clamp(AttackTimer / AttackDuration, 0.f, 1.f);
-        const float CurrentAngle = FMath::Lerp(StartSwingAngle, TargetSwingAngle, Alpha);
+        const float CurrentAngle = FMath::Lerp(SwingFromAngle, SwingToAngle, Alpha);
 
         if (SwordPivot)
         {
@@ -124,9 +152,10 @@ void AGameFeelPlayerCharacter::Tick(float DeltaTime)
         if (AttackTimer >= AttackDuration)
         {
             bIsAttacking = false;
+            CurrentRestAngle = SwingToAngle;
             if (SwordPivot)
             {
-                SwordPivot->SetRelativeRotation(FRotator::ZeroRotator);
+                SwordPivot->SetRelativeRotation(FRotator(0.f, CurrentRestAngle, 0.f));
             }
         }
     }
@@ -194,8 +223,9 @@ void AGameFeelPlayerCharacter::PerformAttack()
     AttackTimer = 0.f;
     HitActorsThisSwing.Empty();
 
-    // Alternate swing direction for combo feel
-    Swap(StartSwingAngle, TargetSwingAngle);
+    // Swing from current resting side to opposite resting side
+    SwingFromAngle = CurrentRestAngle;
+    SwingToAngle = -CurrentRestAngle;
 }
 
 void AGameFeelPlayerCharacter::DetectAttackHits()

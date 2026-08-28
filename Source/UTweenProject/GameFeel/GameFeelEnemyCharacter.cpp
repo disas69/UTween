@@ -17,6 +17,8 @@ AGameFeelEnemyCharacter::AGameFeelEnemyCharacter()
 {
     PrimaryActorTick.bCanEverTick = true;
 
+    AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+
     UCapsuleComponent* CapsuleComp = GetCapsuleComponent();
     if (CapsuleComp)
     {
@@ -24,29 +26,54 @@ AGameFeelEnemyCharacter::AGameFeelEnemyCharacter()
         CapsuleComp->SetCollisionProfileName(TEXT("Pawn"));
     }
 
-    VisualMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("VisualMesh"));
-    VisualMesh->SetupAttachment(RootComponent);
-    VisualMesh->SetRelativeLocation(FVector(0.f, 0.f, -55.f));
-    VisualMesh->SetRelativeScale3D(FVector(0.6f, 0.6f, 1.1f));
-    VisualMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    VisualRoot = CreateDefaultSubobject<USceneComponent>(TEXT("VisualRoot"));
+    VisualRoot->SetupAttachment(RootComponent);
+    VisualRoot->SetRelativeLocation(FVector(0.f, 0.f, 0.f));
 
     static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderFinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
-    if (CylinderFinder.Succeeded())
-    {
-        VisualMesh->SetStaticMesh(CylinderFinder.Object);
-    }
-
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereFinder(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
     static ConstructorHelpers::FObjectFinder<UMaterialInterface> EnemyMatFinder(TEXT("/Game/GameFeel/Materials/MI_GameFeel_Enemy.MI_GameFeel_Enemy"));
-    if (EnemyMatFinder.Succeeded())
-    {
-        VisualMesh->SetMaterial(0, EnemyMatFinder.Object);
-    }
+    static ConstructorHelpers::FObjectFinder<UMaterialInterface> SwordMatFinder(TEXT("/Game/GameFeel/Materials/MI_GameFeel_Sword.MI_GameFeel_Sword"));
+
+    BodyCylinder = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyCylinder"));
+    BodyCylinder->SetupAttachment(VisualRoot);
+    BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, 0.f));
+    BodyCylinder->SetRelativeScale3D(FVector(0.6f, 0.6f, 0.5f));
+    BodyCylinder->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    if (CylinderFinder.Succeeded()) BodyCylinder->SetStaticMesh(CylinderFinder.Object);
+    if (EnemyMatFinder.Succeeded()) BodyCylinder->SetMaterial(0, EnemyMatFinder.Object);
+
+    TopCapSphere = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TopCapSphere"));
+    TopCapSphere->SetupAttachment(VisualRoot);
+    TopCapSphere->SetRelativeLocation(FVector(0.f, 0.f, 25.f));
+    TopCapSphere->SetRelativeScale3D(FVector(0.6f, 0.6f, 0.6f));
+    TopCapSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    if (SphereFinder.Succeeded()) TopCapSphere->SetStaticMesh(SphereFinder.Object);
+    if (EnemyMatFinder.Succeeded()) TopCapSphere->SetMaterial(0, EnemyMatFinder.Object);
+
+    BottomCapSphere = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BottomCapSphere"));
+    BottomCapSphere->SetupAttachment(VisualRoot);
+    BottomCapSphere->SetRelativeLocation(FVector(0.f, 0.f, -25.f));
+    BottomCapSphere->SetRelativeScale3D(FVector(0.6f, 0.6f, 0.6f));
+    BottomCapSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    if (SphereFinder.Succeeded()) BottomCapSphere->SetStaticMesh(SphereFinder.Object);
+    if (EnemyMatFinder.Succeeded()) BottomCapSphere->SetMaterial(0, EnemyMatFinder.Object);
+
+    // White Nose to indicate forward facing direction
+    NoseMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("NoseMesh"));
+    NoseMesh->SetupAttachment(VisualRoot);
+    NoseMesh->SetRelativeLocation(FVector(27.f, 0.f, 12.f));
+    NoseMesh->SetRelativeScale3D(FVector(0.20f, 0.14f, 0.14f));
+    NoseMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    if (SphereFinder.Succeeded()) NoseMesh->SetStaticMesh(SphereFinder.Object);
+    if (SwordMatFinder.Succeeded()) NoseMesh->SetMaterial(0, SwordMatFinder.Object);
 
     if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
     {
         MoveComp->MaxWalkSpeed = MoveSpeed;
-        MoveComp->bOrientRotationToMovement = true;
-        MoveComp->RotationRate = FRotator(0.f, 360.f, 0.f);
+        MoveComp->bOrientRotationToMovement = false;
+        MoveComp->bUseControllerDesiredRotation = false;
+        MoveComp->BrakingDecelerationWalking = 1200.f;
     }
 
     CurrentHealth = MaxHealth;
@@ -58,9 +85,11 @@ void AGameFeelEnemyCharacter::BeginPlay()
 
     InitialSpawnLocation = GetActorLocation();
 
-    if (VisualMesh)
+    if (BodyCylinder)
     {
-        DynamicMaterial = VisualMesh->CreateAndSetMaterialInstanceDynamic(0);
+        DynamicMaterial = BodyCylinder->CreateAndSetMaterialInstanceDynamic(0);
+        if (TopCapSphere && DynamicMaterial) TopCapSphere->SetMaterial(0, DynamicMaterial);
+        if (BottomCapSphere && DynamicMaterial) BottomCapSphere->SetMaterial(0, DynamicMaterial);
     }
 }
 
@@ -87,10 +116,19 @@ void AGameFeelEnemyCharacter::FollowPlayer(float DeltaTime)
     const FVector Diff = PlayerLoc - EnemyLoc;
     const float DistSq = Diff.SizeSquared2D();
 
-    // Stop at attack range
-    if (DistSq > FMath::Square(75.f))
+    if (DistSq > FMath::Square(55.f))
     {
         const FVector Direction = FVector(Diff.X, Diff.Y, 0.f).GetSafeNormal();
+
+        // Face the player
+        const FRotator TargetRot = Direction.Rotation();
+        SetActorRotation(FRotator(0.f, TargetRot.Yaw, 0.f));
+
+        // Directly feed input into CharacterMovementComponent
+        if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+        {
+            MoveComp->AddInputVector(Direction, true);
+        }
         AddMovementInput(Direction, 1.0f);
     }
 }
@@ -103,6 +141,10 @@ void AGameFeelEnemyCharacter::TakeHit(float Damage, const FVector& HitDirection,
     }
 
     CurrentHealth = FMath::Clamp(CurrentHealth - Damage, 0.f, MaxHealth);
+
+    // Natural physics knockback push
+    const FVector LaunchVel = HitDirection * KnockbackForce + FVector(0.f, 0.f, 80.f);
+    LaunchCharacter(LaunchVel, true, true);
 
     if (CurrentHealth <= 0.f)
     {
@@ -122,7 +164,7 @@ void AGameFeelEnemyCharacter::Die()
         RespawnTimer,
         this,
         &AGameFeelEnemyCharacter::ResetEnemy,
-        2.5f,
+        3.0f,
         false);
 }
 

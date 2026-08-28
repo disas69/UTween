@@ -45,7 +45,19 @@ public:
     TObjectPtr<UCameraComponent> TopDownCamera;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    TObjectPtr<UStaticMeshComponent> VisualMesh;
+    TObjectPtr<USceneComponent> VisualRoot;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    TObjectPtr<UStaticMeshComponent> BodyCylinder;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    TObjectPtr<UStaticMeshComponent> TopCapSphere;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    TObjectPtr<UStaticMeshComponent> BottomCapSphere;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    TObjectPtr<UStaticMeshComponent> NoseMesh;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<USceneComponent> SwordPivot;
@@ -60,13 +72,16 @@ public:
     float CurrentHealth = 100.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Combat")
-    float AttackDamage = 35.f;
+    float AttackDamage = 30.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Combat")
-    float AttackDuration = 0.28f;
+    float AttackDuration = 0.22f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Combat")
-    float AttackRange = 175.f;
+    float AttackRange = 180.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Combat")
+    float RestStanceAngle = 85.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Polish")
     bool bIsPolished = false;
@@ -82,9 +97,8 @@ protected:
 private:
     bool bIsAttacking = false;
     float AttackTimer = 0.f;
-    float StartSwingAngle = -100.f;
-    float TargetSwingAngle = 100.f;
+    float CurrentRestAngle = 85.f;
+    float SwingFromAngle = 85.f;
+    float SwingToAngle = -85.f;
     TSet<TWeakObjectPtr<AActor>> HitActorsThisSwing;
-
-    FVector MoveInputVector = FVector::ZeroVector;
 };
