@@ -7,6 +7,7 @@
 class UStaticMeshComponent;
 class USceneComponent;
 class UMaterialInstanceDynamic;
+class AGameFeelImpactSparks;
 
 UCLASS()
 class UTWEENPROJECT_API AGameFeelEnemyCharacter : public ACharacter
@@ -19,7 +20,7 @@ public:
     virtual void Tick(float DeltaTime) override;
 
     UFUNCTION(BlueprintCallable, Category = "GameFeel|Enemy")
-    void TakeHit(float Damage, const FVector& HitDirection, bool bIsCritical);
+    void TakeHit(float Damage, const FVector& HitDirection, bool bPolishedHit);
 
     UFUNCTION(BlueprintCallable, Category = "GameFeel|Enemy")
     void ResetEnemy();
@@ -41,6 +42,9 @@ public:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UStaticMeshComponent> NoseMesh;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Visuals")
+    TSubclassOf<AGameFeelImpactSparks> ImpactSparksClass;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Stats")
     float MaxHealth = 100.f;

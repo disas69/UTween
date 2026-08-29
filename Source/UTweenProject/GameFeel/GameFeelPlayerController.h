@@ -4,6 +4,8 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFeelPlayerController.generated.h"
 
+class UInputMappingContext;
+
 UCLASS()
 class UTWEENPROJECT_API AGameFeelPlayerController : public APlayerController
 {
@@ -11,6 +13,9 @@ class UTWEENPROJECT_API AGameFeelPlayerController : public APlayerController
 
 public:
     AGameFeelPlayerController();
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Input")
+    TObjectPtr<UInputMappingContext> DefaultMappingContext;
 
 protected:
     virtual void BeginPlay() override;

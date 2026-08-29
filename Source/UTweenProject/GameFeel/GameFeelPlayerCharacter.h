@@ -2,12 +2,16 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "InputActionValue.h"
 #include "GameFeelPlayerCharacter.generated.h"
 
 class USpringArmComponent;
 class UCameraComponent;
 class UStaticMeshComponent;
 class USceneComponent;
+class AGameFeelSlashArc;
+class UInputAction;
+class UInputMappingContext;
 
 UCLASS()
 class UTWEENPROJECT_API AGameFeelPlayerCharacter : public ACharacter
@@ -19,6 +23,7 @@ public:
 
     virtual void Tick(float DeltaTime) override;
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+    virtual void PawnClientRestart() override;
 
     UFUNCTION(BlueprintCallable, Category = "GameFeel|Combat")
     void PerformAttack();
@@ -37,6 +42,8 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "GameFeel|Combat")
     void TakePlayerDamage(float Damage);
+
+    void TriggerHitstop(float Duration = 0.055f);
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<USpringArmComponent> CameraBoom;
@@ -65,6 +72,24 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UStaticMeshComponent> SwordMesh;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Visuals")
+    TSubclassOf<AGameFeelSlashArc> SlashArcClass;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Input")
+    TObjectPtr<UInputMappingContext> DefaultMappingContext;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Input")
+    TObjectPtr<UInputAction> MoveAction;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Input")
+    TObjectPtr<UInputAction> AimAction;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Input")
+    TObjectPtr<UInputAction> AttackAction;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Input")
+    TObjectPtr<UInputAction> TogglePolishAction;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Stats")
     float MaxHealth = 100.f;
 
@@ -75,7 +100,7 @@ public:
     float AttackDamage = 30.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Combat")
-    float AttackDuration = 0.22f;
+    float AttackDuration = 0.20f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Combat")
     float AttackRange = 180.f;
@@ -84,21 +109,31 @@ public:
     float RestStanceAngle = 85.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Polish")
-    bool bIsPolished = false;
+    bool bIsPolished = true;
 
 protected:
     virtual void BeginPlay() override;
 
-    void MoveForward(float Value);
-    void MoveRight(float Value);
+    void EnhancedMove(const FInputActionValue& Value);
+    void EnhancedAim(const FInputActionValue& Value);
+    void EnhancedAimCompleted(const FInputActionValue& Value);
+
     void AimAtCursor();
     void DetectAttackHits();
 
 private:
+    void ExecutePolishedAttack();
+    void ExecuteUnpolishedAttack();
+
     bool bIsAttacking = false;
     float AttackTimer = 0.f;
     float CurrentRestAngle = 85.f;
     float SwingFromAngle = 85.f;
     float SwingToAngle = -85.f;
     TSet<TWeakObjectPtr<AActor>> HitActorsThisSwing;
+
+    bool bUsingGamepadAim = false;
+
+    UPROPERTY(Transient)
+    TObjectPtr<AGameFeelSlashArc> SlashArcInstance;
 };

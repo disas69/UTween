@@ -4,17 +4,23 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/LocalPlayer.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "InputAction.h"
+#include "InputMappingContext.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
 
 #include "GameFeelEnemyCharacter.h"
+#include "GameFeelSlashArc.h"
 #include "UTween.h"
 
 AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
@@ -38,7 +44,6 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
     static ConstructorHelpers::FObjectFinder<UMaterialInterface> PlayerMatFinder(TEXT("/Game/GameFeel/Materials/MI_GameFeel_Player.MI_GameFeel_Player"));
     static ConstructorHelpers::FObjectFinder<UMaterialInterface> SwordMatFinder(TEXT("/Game/GameFeel/Materials/MI_GameFeel_Sword.MI_GameFeel_Sword"));
 
-    // Cylinder body of capsule
     BodyCylinder = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyCylinder"));
     BodyCylinder->SetupAttachment(VisualRoot);
     BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, 0.f));
@@ -47,7 +52,6 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
     if (CylinderFinder.Succeeded()) BodyCylinder->SetStaticMesh(CylinderFinder.Object);
     if (PlayerMatFinder.Succeeded()) BodyCylinder->SetMaterial(0, PlayerMatFinder.Object);
 
-    // Top cap sphere
     TopCapSphere = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TopCapSphere"));
     TopCapSphere->SetupAttachment(VisualRoot);
     TopCapSphere->SetRelativeLocation(FVector(0.f, 0.f, 30.f));
@@ -56,7 +60,6 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
     if (SphereFinder.Succeeded()) TopCapSphere->SetStaticMesh(SphereFinder.Object);
     if (PlayerMatFinder.Succeeded()) TopCapSphere->SetMaterial(0, PlayerMatFinder.Object);
 
-    // Bottom cap sphere
     BottomCapSphere = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BottomCapSphere"));
     BottomCapSphere->SetupAttachment(VisualRoot);
     BottomCapSphere->SetRelativeLocation(FVector(0.f, 0.f, -30.f));
@@ -65,7 +68,6 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
     if (SphereFinder.Succeeded()) BottomCapSphere->SetStaticMesh(SphereFinder.Object);
     if (PlayerMatFinder.Succeeded()) BottomCapSphere->SetMaterial(0, PlayerMatFinder.Object);
 
-    // White Nose to clearly indicate forward facing direction
     NoseMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("NoseMesh"));
     NoseMesh->SetupAttachment(VisualRoot);
     NoseMesh->SetRelativeLocation(FVector(32.f, 0.f, 15.f));
@@ -74,7 +76,6 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
     if (SphereFinder.Succeeded()) NoseMesh->SetStaticMesh(SphereFinder.Object);
     if (SwordMatFinder.Succeeded()) NoseMesh->SetMaterial(0, SwordMatFinder.Object);
 
-    // Camera Boom
     CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
     CameraBoom->SetupAttachment(RootComponent);
     CameraBoom->SetUsingAbsoluteRotation(true);
@@ -85,12 +86,10 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
     CameraBoom->bInheritYaw = false;
     CameraBoom->bInheritRoll = false;
 
-    // Top-Down Camera
     TopDownCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("TopDownCamera"));
     TopDownCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
     TopDownCamera->bUsePawnControlRotation = false;
 
-    // Sword Pivot & Mesh
     SwordPivot = CreateDefaultSubobject<USceneComponent>(TEXT("SwordPivot"));
     SwordPivot->SetupAttachment(RootComponent);
     SwordPivot->SetRelativeLocation(FVector(0.f, 0.f, 0.f));
@@ -102,6 +101,31 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
     SwordMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     if (CubeFinder.Succeeded()) SwordMesh->SetStaticMesh(CubeFinder.Object);
     if (SwordMatFinder.Succeeded()) SwordMesh->SetMaterial(0, SwordMatFinder.Object);
+
+    static ConstructorHelpers::FClassFinder<AGameFeelSlashArc> SlashBP(TEXT("/Game/GameFeel/Blueprints/BP_GameFeelSlashArc.BP_GameFeelSlashArc_C"));
+    if (SlashBP.Succeeded())
+    {
+        SlashArcClass = SlashBP.Class;
+    }
+    else
+    {
+        SlashArcClass = AGameFeelSlashArc::StaticClass();
+    }
+
+    static ConstructorHelpers::FObjectFinder<UInputMappingContext> IMCFinder(TEXT("/Game/GameFeel/Input/IMC_GameFeel.IMC_GameFeel"));
+    if (IMCFinder.Succeeded()) DefaultMappingContext = IMCFinder.Object;
+
+    static ConstructorHelpers::FObjectFinder<UInputAction> MoveActionFinder(TEXT("/Game/GameFeel/Input/IA_GameFeel_Move.IA_GameFeel_Move"));
+    if (MoveActionFinder.Succeeded()) MoveAction = MoveActionFinder.Object;
+
+    static ConstructorHelpers::FObjectFinder<UInputAction> AimActionFinder(TEXT("/Game/GameFeel/Input/IA_GameFeel_Aim.IA_GameFeel_Aim"));
+    if (AimActionFinder.Succeeded()) AimAction = AimActionFinder.Object;
+
+    static ConstructorHelpers::FObjectFinder<UInputAction> AttackActionFinder(TEXT("/Game/GameFeel/Input/IA_GameFeel_Attack.IA_GameFeel_Attack"));
+    if (AttackActionFinder.Succeeded()) AttackAction = AttackActionFinder.Object;
+
+    static ConstructorHelpers::FObjectFinder<UInputAction> ToggleActionFinder(TEXT("/Game/GameFeel/Input/IA_GameFeel_TogglePolish.IA_GameFeel_TogglePolish"));
+    if (ToggleActionFinder.Succeeded()) TogglePolishAction = ToggleActionFinder.Object;
 
     bUseControllerRotationPitch = false;
     bUseControllerRotationYaw = false;
@@ -128,6 +152,36 @@ void AGameFeelPlayerCharacter::BeginPlay()
     {
         SwordPivot->SetRelativeRotation(FRotator(0.f, CurrentRestAngle, 0.f));
     }
+
+    if (SlashArcClass && GetWorld())
+    {
+        FActorSpawnParameters Params;
+        Params.Owner = this;
+        Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+        SlashArcInstance = GetWorld()->SpawnActor<AGameFeelSlashArc>(SlashArcClass, GetActorLocation(), GetActorRotation(), Params);
+        if (SlashArcInstance)
+        {
+            SlashArcInstance->AttachToComponent(VisualRoot, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+        }
+    }
+}
+
+void AGameFeelPlayerCharacter::PawnClientRestart()
+{
+    Super::PawnClientRestart();
+
+    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    {
+        if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
+        {
+            if (DefaultMappingContext)
+            {
+                Subsystem->ClearAllMappings();
+                Subsystem->AddMappingContext(DefaultMappingContext, 0);
+            }
+        }
+    }
 }
 
 void AGameFeelPlayerCharacter::Tick(float DeltaTime)
@@ -136,7 +190,7 @@ void AGameFeelPlayerCharacter::Tick(float DeltaTime)
 
     AimAtCursor();
 
-    if (bIsAttacking)
+    if (bIsAttacking && !bIsPolished)
     {
         AttackTimer += DeltaTime;
         const float Alpha = FMath::Clamp(AttackTimer / AttackDuration, 0.f, 1.f);
@@ -165,33 +219,73 @@ void AGameFeelPlayerCharacter::SetupPlayerInputComponent(UInputComponent* Player
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-    if (PlayerInputComponent)
+    if (UEnhancedInputComponent* EnhancedInputComp = Cast<UEnhancedInputComponent>(PlayerInputComponent))
     {
-        PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &AGameFeelPlayerCharacter::MoveForward);
-        PlayerInputComponent->BindAxis(TEXT("MoveRight"), this, &AGameFeelPlayerCharacter::MoveRight);
-        PlayerInputComponent->BindAction(TEXT("Attack"), IE_Pressed, this, &AGameFeelPlayerCharacter::PerformAttack);
-        PlayerInputComponent->BindAction(TEXT("TogglePolish"), IE_Pressed, this, &AGameFeelPlayerCharacter::TogglePolishMode);
+        if (MoveAction)
+        {
+            EnhancedInputComp->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AGameFeelPlayerCharacter::EnhancedMove);
+        }
+        if (AimAction)
+        {
+            EnhancedInputComp->BindAction(AimAction, ETriggerEvent::Triggered, this, &AGameFeelPlayerCharacter::EnhancedAim);
+            EnhancedInputComp->BindAction(AimAction, ETriggerEvent::Completed, this, &AGameFeelPlayerCharacter::EnhancedAimCompleted);
+        }
+        if (AttackAction)
+        {
+            EnhancedInputComp->BindAction(AttackAction, ETriggerEvent::Started, this, &AGameFeelPlayerCharacter::PerformAttack);
+        }
+        if (TogglePolishAction)
+        {
+            EnhancedInputComp->BindAction(TogglePolishAction, ETriggerEvent::Started, this, &AGameFeelPlayerCharacter::TogglePolishMode);
+        }
     }
 }
 
-void AGameFeelPlayerCharacter::MoveForward(float Value)
+void AGameFeelPlayerCharacter::EnhancedMove(const FInputActionValue& Value)
 {
-    if (Value != 0.0f)
+    const FVector2D MoveVec = Value.Get<FVector2D>();
+    if (!MoveVec.IsNearlyZero())
     {
-        AddMovementInput(FVector::ForwardVector, Value);
+        AddMovementInput(FVector::ForwardVector, MoveVec.Y);
+        AddMovementInput(FVector::RightVector, MoveVec.X);
+
+        if (!bUsingGamepadAim)
+        {
+            const FVector MoveDir = FVector(MoveVec.Y, MoveVec.X, 0.f).GetSafeNormal();
+            if (!MoveDir.IsNearlyZero())
+            {
+                SetActorRotation(FRotator(0.f, MoveDir.Rotation().Yaw, 0.f));
+            }
+        }
     }
 }
 
-void AGameFeelPlayerCharacter::MoveRight(float Value)
+void AGameFeelPlayerCharacter::EnhancedAim(const FInputActionValue& Value)
 {
-    if (Value != 0.0f)
+    const FVector2D AimVec = Value.Get<FVector2D>();
+    if (AimVec.SizeSquared() > 0.05f)
     {
-        AddMovementInput(FVector::RightVector, Value);
+        bUsingGamepadAim = true;
+        const FVector AimDir = FVector(AimVec.Y, AimVec.X, 0.f).GetSafeNormal();
+        if (!AimDir.IsNearlyZero())
+        {
+            SetActorRotation(FRotator(0.f, AimDir.Rotation().Yaw, 0.f));
+        }
     }
+}
+
+void AGameFeelPlayerCharacter::EnhancedAimCompleted(const FInputActionValue& Value)
+{
+    bUsingGamepadAim = false;
 }
 
 void AGameFeelPlayerCharacter::AimAtCursor()
 {
+    if (bUsingGamepadAim)
+    {
+        return;
+    }
+
     APlayerController* PC = Cast<APlayerController>(GetController());
     if (!PC)
     {
@@ -223,9 +317,62 @@ void AGameFeelPlayerCharacter::PerformAttack()
     AttackTimer = 0.f;
     HitActorsThisSwing.Empty();
 
-    // Swing from current resting side to opposite resting side
     SwingFromAngle = CurrentRestAngle;
     SwingToAngle = -CurrentRestAngle;
+
+    if (bIsPolished)
+    {
+        ExecutePolishedAttack();
+    }
+}
+
+void AGameFeelPlayerCharacter::ExecutePolishedAttack()
+{
+    LaunchCharacter(GetActorForwardVector() * 360.f, false, false);
+
+    const float WindupSign = (SwingFromAngle > 0.f) ? 1.f : -1.f;
+    const float WindupAngle = SwingFromAngle + (WindupSign * 18.f);
+    const float OvershootAngle = SwingToAngle - (WindupSign * 12.f);
+
+    UTween::Value(this, SwingFromAngle, WindupAngle, 0.045f, [this](float Angle) {
+        if (SwordPivot)
+        {
+            SwordPivot->SetRelativeRotation(FRotator(0.f, Angle, 0.f));
+        }
+    })
+    .SetEase(ETweenEase::OutQuad)
+    .OnComplete([this, WindupAngle, OvershootAngle]() {
+        if (SlashArcInstance)
+        {
+            SlashArcInstance->TriggerSlash(0.14f);
+        }
+
+        UTween::Value(this, WindupAngle, OvershootAngle, 0.12f, [this](float Angle) {
+            if (SwordPivot)
+            {
+                SwordPivot->SetRelativeRotation(FRotator(0.f, Angle, 0.f));
+            }
+            DetectAttackHits();
+        })
+        .SetEase(ETweenEase::OutBack)
+        .OnComplete([this, OvershootAngle]() {
+            UTween::Value(this, OvershootAngle, SwingToAngle, 0.035f, [this](float Angle) {
+                if (SwordPivot)
+                {
+                    SwordPivot->SetRelativeRotation(FRotator(0.f, Angle, 0.f));
+                }
+            })
+            .SetEase(ETweenEase::InOutQuad)
+            .OnComplete([this]() {
+                bIsAttacking = false;
+                CurrentRestAngle = SwingToAngle;
+                if (SwordPivot)
+                {
+                    SwordPivot->SetRelativeRotation(FRotator(0.f, CurrentRestAngle, 0.f));
+                }
+            });
+        });
+    });
 }
 
 void AGameFeelPlayerCharacter::DetectAttackHits()
@@ -260,10 +407,36 @@ void AGameFeelPlayerCharacter::DetectAttackHits()
             {
                 HitActorsThisSwing.Add(Enemy);
                 const FVector HitDir = (Enemy->GetActorLocation() - GetActorLocation()).GetSafeNormal();
-                Enemy->TakeHit(AttackDamage, HitDir, false);
+
+                Enemy->TakeHit(AttackDamage, HitDir, bIsPolished);
+
+                if (bIsPolished)
+                {
+                    TriggerHitstop(0.055f);
+                }
             }
         }
     }
+}
+
+void AGameFeelPlayerCharacter::TriggerHitstop(float Duration)
+{
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    UGameplayStatics::SetGlobalTimeDilation(World, 0.001f);
+
+    UTween::Value(this, 0.f, 1.f, Duration, [](float) {})
+        .SetTimeMode(ETweenTimeMode::RealTime)
+        .OnComplete([WorldWeak = TWeakObjectPtr<UWorld>(World)]() {
+            if (WorldWeak.IsValid())
+            {
+                UGameplayStatics::SetGlobalTimeDilation(WorldWeak.Get(), 1.0f);
+            }
+        });
 }
 
 void AGameFeelPlayerCharacter::TogglePolishMode()

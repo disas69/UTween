@@ -127,6 +127,11 @@ UTween/
 4. **Preserve Compatibility**:
    - Maintain parity between the fluent C++ API, convenience macros, and Blueprint nodes.
 
+5. **C++ vs. Blueprint Architectural Separation**:
+   - **C++ Responsibility**: Core gameplay logic, state machines, math, tween dispatchers/orchestration, lifecycle & GC safety, and exposed Blueprint-configurable properties (`UPROPERTY`) / events (`UFUNCTION`).
+   - **Blueprint & Native Asset Responsibility**: Visual hierarchies, mesh components, materials, particle effects (Niagara/Cascade), audio cues, and visual asset parameter configuration.
+   - **No Procedural Visual Instantiation in Code**: Never hardcode procedural shapes, particles, or mesh assemblies in C++ when a native Blueprint or Material asset should represent the entity. Always author assets via Unreal MCP tools and expose `TSubclassOf<AActor>` / `TSubclassOf<UUserWidget>` / `UMaterialInterface*` for Blueprint assignment.
+
 ---
 
 ## 6. Mandatory Post-Change Build Verification Protocol

@@ -21,6 +21,12 @@ AGameFeelGameMode::AGameFeelGameMode()
         DefaultPawnClass = PlayerBP.Class;
     }
 
+    static ConstructorHelpers::FClassFinder<AGameFeelPlayerController> PCBP(TEXT("/Game/GameFeel/Blueprints/BP_GameFeelPlayerController.BP_GameFeelPlayerController_C"));
+    if (PCBP.Succeeded())
+    {
+        PlayerControllerClass = PCBP.Class;
+    }
+
     static ConstructorHelpers::FClassFinder<AGameFeelEnemyCharacter> EnemyBP(TEXT("/Game/GameFeel/Blueprints/BP_GameFeelEnemy.BP_GameFeelEnemy_C"));
     if (EnemyBP.Succeeded())
     {
@@ -43,7 +49,6 @@ void AGameFeelGameMode::SpawnEnemyRing()
         return;
     }
 
-    // Check if enemies already exist in the level
     TArray<AActor*> ExistingEnemies;
     UGameplayStatics::GetAllActorsOfClass(World, AGameFeelEnemyCharacter::StaticClass(), ExistingEnemies);
     if (ExistingEnemies.Num() > 0)

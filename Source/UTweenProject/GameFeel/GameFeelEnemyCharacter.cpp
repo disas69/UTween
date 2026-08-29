@@ -11,7 +11,9 @@
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 
+#include "GameFeelImpactSparks.h"
 #include "GameFeelPlayerCharacter.h"
+#include "UTween.h"
 
 AGameFeelEnemyCharacter::AGameFeelEnemyCharacter()
 {
@@ -59,7 +61,6 @@ AGameFeelEnemyCharacter::AGameFeelEnemyCharacter()
     if (SphereFinder.Succeeded()) BottomCapSphere->SetStaticMesh(SphereFinder.Object);
     if (EnemyMatFinder.Succeeded()) BottomCapSphere->SetMaterial(0, EnemyMatFinder.Object);
 
-    // White Nose to indicate forward facing direction
     NoseMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("NoseMesh"));
     NoseMesh->SetupAttachment(VisualRoot);
     NoseMesh->SetRelativeLocation(FVector(27.f, 0.f, 12.f));
@@ -67,6 +68,16 @@ AGameFeelEnemyCharacter::AGameFeelEnemyCharacter()
     NoseMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     if (SphereFinder.Succeeded()) NoseMesh->SetStaticMesh(SphereFinder.Object);
     if (SwordMatFinder.Succeeded()) NoseMesh->SetMaterial(0, SwordMatFinder.Object);
+
+    static ConstructorHelpers::FClassFinder<AGameFeelImpactSparks> SparksBP(TEXT("/Game/GameFeel/Blueprints/BP_GameFeelImpactSparks.BP_GameFeelImpactSparks_C"));
+    if (SparksBP.Succeeded())
+    {
+        ImpactSparksClass = SparksBP.Class;
+    }
+    else
+    {
+        ImpactSparksClass = AGameFeelImpactSparks::StaticClass();
+    }
 
     if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
     {
@@ -120,11 +131,9 @@ void AGameFeelEnemyCharacter::FollowPlayer(float DeltaTime)
     {
         const FVector Direction = FVector(Diff.X, Diff.Y, 0.f).GetSafeNormal();
 
-        // Face the player
         const FRotator TargetRot = Direction.Rotation();
         SetActorRotation(FRotator(0.f, TargetRot.Yaw, 0.f));
 
-        // Directly feed input into CharacterMovementComponent
         if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
         {
             MoveComp->AddInputVector(Direction, true);
@@ -133,7 +142,7 @@ void AGameFeelEnemyCharacter::FollowPlayer(float DeltaTime)
     }
 }
 
-void AGameFeelEnemyCharacter::TakeHit(float Damage, const FVector& HitDirection, bool bIsCritical)
+void AGameFeelEnemyCharacter::TakeHit(float Damage, const FVector& HitDirection, bool bPolishedHit)
 {
     if (bIsDead)
     {
@@ -142,9 +151,43 @@ void AGameFeelEnemyCharacter::TakeHit(float Damage, const FVector& HitDirection,
 
     CurrentHealth = FMath::Clamp(CurrentHealth - Damage, 0.f, MaxHealth);
 
-    // Natural physics knockback push
-    const FVector LaunchVel = HitDirection * KnockbackForce + FVector(0.f, 0.f, 80.f);
-    LaunchCharacter(LaunchVel, true, true);
+    if (!bPolishedHit)
+    {
+        const FVector LaunchVel = HitDirection * KnockbackForce + FVector(0.f, 0.f, 80.f);
+        LaunchCharacter(LaunchVel, true, true);
+    }
+    else
+    {
+        const FVector LaunchVel = HitDirection * (KnockbackForce * 1.3f) + FVector(0.f, 0.f, 120.f);
+        LaunchCharacter(LaunchVel, true, true);
+
+        // 1. Emissive White Hit Flash via UTween
+        if (DynamicMaterial)
+        {
+            DynamicMaterial->SetVectorParameterValue(FName("EmissiveColor"), FLinearColor(6.0f, 6.0f, 6.0f, 1.0f));
+            UTween::MaterialVector(DynamicMaterial, FName("EmissiveColor"), FLinearColor::Black, 0.14f)
+                .SetEase(ETweenEase::OutQuad);
+        }
+
+        // 2. Squash & Stretch Elasticity via UTween
+        if (VisualRoot)
+        {
+            UTween::Scale(VisualRoot, FVector(1.4f, 1.4f, 0.55f), FVector(1.0f, 1.0f, 1.0f), 0.28f)
+                .SetEase(ETweenEase::OutElastic);
+        }
+
+        // 3. Spawn native Impact Sparks Blueprint actor
+        if (ImpactSparksClass && GetWorld())
+        {
+            FActorSpawnParameters Params;
+            Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+            if (AGameFeelImpactSparks* Sparks = GetWorld()->SpawnActor<AGameFeelImpactSparks>(ImpactSparksClass, GetActorLocation() + FVector(0.f, 0.f, 15.f), HitDirection.Rotation(), Params))
+            {
+                Sparks->TriggerSparks(HitDirection);
+            }
+        }
+    }
 
     if (CurrentHealth <= 0.f)
     {
@@ -158,7 +201,6 @@ void AGameFeelEnemyCharacter::Die()
     SetActorEnableCollision(false);
     SetActorHiddenInGame(true);
 
-    // Respawn after short delay
     FTimerHandle RespawnTimer;
     GetWorldTimerManager().SetTimer(
         RespawnTimer,
@@ -175,4 +217,13 @@ void AGameFeelEnemyCharacter::ResetEnemy()
     SetActorLocation(InitialSpawnLocation);
     SetActorEnableCollision(true);
     SetActorHiddenInGame(false);
+
+    if (VisualRoot)
+    {
+        VisualRoot->SetRelativeScale3D(FVector::OneVector);
+    }
+    if (DynamicMaterial)
+    {
+        DynamicMaterial->SetVectorParameterValue(FName("EmissiveColor"), FLinearColor::Black);
+    }
 }
