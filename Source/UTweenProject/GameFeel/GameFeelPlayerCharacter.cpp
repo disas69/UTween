@@ -112,21 +112,6 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
         SlashArcClass = AGameFeelSlashArc::StaticClass();
     }
 
-    static ConstructorHelpers::FObjectFinder<UInputMappingContext> IMCFinder(TEXT("/Game/GameFeel/Input/IMC_GameFeel.IMC_GameFeel"));
-    if (IMCFinder.Succeeded()) DefaultMappingContext = IMCFinder.Object;
-
-    static ConstructorHelpers::FObjectFinder<UInputAction> MoveActionFinder(TEXT("/Game/GameFeel/Input/IA_GameFeel_Move.IA_GameFeel_Move"));
-    if (MoveActionFinder.Succeeded()) MoveAction = MoveActionFinder.Object;
-
-    static ConstructorHelpers::FObjectFinder<UInputAction> AimActionFinder(TEXT("/Game/GameFeel/Input/IA_GameFeel_Aim.IA_GameFeel_Aim"));
-    if (AimActionFinder.Succeeded()) AimAction = AimActionFinder.Object;
-
-    static ConstructorHelpers::FObjectFinder<UInputAction> AttackActionFinder(TEXT("/Game/GameFeel/Input/IA_GameFeel_Attack.IA_GameFeel_Attack"));
-    if (AttackActionFinder.Succeeded()) AttackAction = AttackActionFinder.Object;
-
-    static ConstructorHelpers::FObjectFinder<UInputAction> ToggleActionFinder(TEXT("/Game/GameFeel/Input/IA_GameFeel_TogglePolish.IA_GameFeel_TogglePolish"));
-    if (ToggleActionFinder.Succeeded()) TogglePolishAction = ToggleActionFinder.Object;
-
     bUseControllerRotationPitch = false;
     bUseControllerRotationYaw = false;
     bUseControllerRotationRoll = false;

@@ -10,12 +10,6 @@ AGameFeelPlayerController::AGameFeelPlayerController()
     bShowMouseCursor = true;
     bEnableClickEvents = true;
     bEnableMouseOverEvents = true;
-
-    static ConstructorHelpers::FObjectFinder<UInputMappingContext> IMCFinder(TEXT("/Game/GameFeel/Input/IMC_GameFeel.IMC_GameFeel"));
-    if (IMCFinder.Succeeded())
-    {
-        DefaultMappingContext = IMCFinder.Object;
-    }
 }
 
 void AGameFeelPlayerController::BeginPlay()
