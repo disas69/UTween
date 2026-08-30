@@ -40,10 +40,14 @@ public:
     UFUNCTION(BlueprintPure, Category = "GameFeel|Combat")
     bool IsAttacking() const { return bIsAttacking; }
 
+    UFUNCTION(BlueprintPure, Category = "GameFeel|Combat")
+    int32 GetCurrentCombo() const { return CurrentCombo; }
+
     UFUNCTION(BlueprintCallable, Category = "GameFeel|Combat")
     void TakePlayerDamage(float Damage);
 
     void TriggerHitstop(float Duration = 0.055f);
+    void TriggerComboFinishFlourish();
 
     UFUNCTION(BlueprintCallable, Category = "GameFeel|Camera")
     void AddCameraTrauma(float Amount);
@@ -165,6 +169,9 @@ private:
     bool bUsingGamepadAim = false;
     float CameraTrauma = 0.f;
     float TraumaTimer = 0.f;
+
+    int32 CurrentCombo = 0;
+    float ComboTimer = 0.f;
 
     UPROPERTY(Transient)
     TObjectPtr<AGameFeelSlashArc> SlashArcInstance;

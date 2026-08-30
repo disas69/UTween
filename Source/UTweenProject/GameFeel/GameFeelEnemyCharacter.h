@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
@@ -45,6 +45,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Visuals")
     TSubclassOf<AGameFeelImpactSparks> ImpactSparksClass;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Visuals")
+    TSubclassOf<class AGameFeelDamageNumber> DamageNumberClass;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Stats")
     float MaxHealth = 100.f;

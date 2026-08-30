@@ -20,6 +20,7 @@
 #include "UObject/ConstructorHelpers.h"
 
 #include "GameFeelEnemyCharacter.h"
+#include "GameFeelPlayerController.h"
 #include "GameFeelSlashArc.h"
 #include "UTween.h"
 
@@ -175,6 +176,20 @@ void AGameFeelPlayerCharacter::Tick(float DeltaTime)
 
     AimAtCursor();
     UpdateCameraDynamics(DeltaTime);
+
+    if (CurrentCombo > 0)
+    {
+        ComboTimer += DeltaTime;
+        if (ComboTimer > 1.35f)
+        {
+            CurrentCombo = 0;
+            ComboTimer = 0.f;
+            if (AGameFeelPlayerController* PC = Cast<AGameFeelPlayerController>(GetController()))
+            {
+                PC->NotifyComboChanged(CurrentCombo);
+            }
+        }
+    }
 
     if (bIsAttacking && !bIsPolished)
     {
@@ -494,9 +509,24 @@ void AGameFeelPlayerCharacter::DetectAttackHits()
 
                 if (bIsPolished)
                 {
-                    TriggerHitstop(0.055f);
-                    AddCameraTrauma(0.35f);
-                    TriggerCameraPunchZoom(790.f, 0.05f, 0.20f);
+                    CurrentCombo++;
+                    ComboTimer = 0.f;
+                    if (AGameFeelPlayerController* PC = Cast<AGameFeelPlayerController>(GetController()))
+                    {
+                        PC->NotifyComboChanged(CurrentCombo);
+                    }
+
+                    if (CurrentCombo >= 3)
+                    {
+                        CurrentCombo = 0;
+                        TriggerComboFinishFlourish();
+                    }
+                    else
+                    {
+                        TriggerHitstop(0.055f);
+                        AddCameraTrauma(0.35f);
+                        TriggerCameraPunchZoom(790.f, 0.05f, 0.20f);
+                    }
                 }
             }
         }
@@ -523,6 +553,29 @@ void AGameFeelPlayerCharacter::TriggerHitstop(float Duration)
         });
 }
 
+void AGameFeelPlayerCharacter::TriggerComboFinishFlourish()
+{
+    UWorld* World = GetWorld();
+    if (!World || !bIsPolished)
+    {
+        return;
+    }
+
+    AddCameraTrauma(0.65f);
+    TriggerCameraPunchZoom(730.f, 0.06f, 0.30f);
+
+    UGameplayStatics::SetGlobalTimeDilation(World, 0.25f);
+
+    UTween::Value(this, 0.25f, 1.0f, 0.18f, [WorldWeak = TWeakObjectPtr<UWorld>(World)](float Dilation) {
+        if (WorldWeak.IsValid())
+        {
+            UGameplayStatics::SetGlobalTimeDilation(WorldWeak.Get(), Dilation);
+        }
+    })
+    .SetTimeMode(ETweenTimeMode::RealTime)
+    .SetEase(ETweenEase::OutQuad);
+}
+
 void AGameFeelPlayerCharacter::TogglePolishMode()
 {
     SetPolishMode(!bIsPolished);
@@ -532,8 +585,14 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
 {
     bIsPolished = bEnable;
 
+    if (AGameFeelPlayerController* PC = Cast<AGameFeelPlayerController>(GetController()))
+    {
+        PC->NotifyPolishChanged(bIsPolished);
+    }
+
     if (!bIsPolished)
     {
+        CurrentCombo = 0;
         CameraTrauma = 0.f;
         if (TopDownCamera)
         {

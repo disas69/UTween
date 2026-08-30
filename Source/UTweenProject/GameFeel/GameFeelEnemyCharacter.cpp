@@ -11,6 +11,7 @@
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 
+#include "GameFeelDamageNumber.h"
 #include "GameFeelImpactSparks.h"
 #include "GameFeelPlayerCharacter.h"
 #include "UTween.h"
@@ -77,6 +78,16 @@ AGameFeelEnemyCharacter::AGameFeelEnemyCharacter()
     else
     {
         ImpactSparksClass = AGameFeelImpactSparks::StaticClass();
+    }
+
+    static ConstructorHelpers::FClassFinder<AGameFeelDamageNumber> DmgBP(TEXT("/Game/GameFeel/Blueprints/BP_GameFeelDamageNumber.BP_GameFeelDamageNumber_C"));
+    if (DmgBP.Succeeded())
+    {
+        DamageNumberClass = DmgBP.Class;
+    }
+    else
+    {
+        DamageNumberClass = AGameFeelDamageNumber::StaticClass();
     }
 
     if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
@@ -172,7 +183,8 @@ void AGameFeelEnemyCharacter::TakeHit(float Damage, const FVector& HitDirection,
         // 2. Squash & Stretch Elasticity via UTween
         if (VisualRoot)
         {
-            UTween::Scale(VisualRoot, FVector(1.4f, 1.4f, 0.55f), FVector(1.0f, 1.0f, 1.0f), 0.28f)
+            VisualRoot->SetRelativeScale3D(FVector(1.4f, 1.4f, 0.55f));
+            UTween::ComponentRelativeScale(VisualRoot, FVector(1.0f, 1.0f, 1.0f), 0.28f)
                 .SetEase(ETweenEase::OutElastic);
         }
 
@@ -185,6 +197,18 @@ void AGameFeelEnemyCharacter::TakeHit(float Damage, const FVector& HitDirection,
             if (AGameFeelImpactSparks* Sparks = GetWorld()->SpawnActor<AGameFeelImpactSparks>(ImpactSparksClass, GetActorLocation() + FVector(0.f, 0.f, 15.f), HitDirection.Rotation(), Params))
             {
                 Sparks->TriggerSparks(HitDirection);
+            }
+        }
+
+        // 4. Spawn Floating Damage Number via UTween
+        if (DamageNumberClass && GetWorld())
+        {
+            FActorSpawnParameters Params;
+            Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+            if (AGameFeelDamageNumber* DmgNum = GetWorld()->SpawnActor<AGameFeelDamageNumber>(DamageNumberClass, GetActorLocation(), FRotator::ZeroRotator, Params))
+            {
+                DmgNum->InitializeDamage(Damage, GetActorLocation());
             }
         }
     }
@@ -206,8 +230,47 @@ void AGameFeelEnemyCharacter::Die()
 {
     bIsDead = true;
     SetActorEnableCollision(false);
-    SetActorHiddenInGame(true);
 
+    if (AGameFeelPlayerCharacter* Player = Cast<AGameFeelPlayerCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
+    {
+        if (Player->IsPolishEnabled() && VisualRoot)
+        {
+            // Polished 3-step death animation sequence: Flatten -> Pop Up -> Shrink / Implode
+            UTween::ComponentRelativeScale(VisualRoot, FVector(1.6f, 1.6f, 0.2f), 0.07f)
+                .SetEase(ETweenEase::OutQuad)
+                .OnComplete([this]() {
+                    if (VisualRoot)
+                    {
+                        UTween::ComponentRelativeLocation(VisualRoot, FVector(0.f, 0.f, 60.f), 0.12f)
+                            .SetEase(ETweenEase::OutBack);
+
+                        UTween::ComponentRelativeScale(VisualRoot, FVector(0.7f, 0.7f, 1.5f), 0.12f)
+                            .SetEase(ETweenEase::OutBack)
+                            .OnComplete([this]() {
+                                if (VisualRoot)
+                                {
+                                    UTween::ComponentRelativeScale(VisualRoot, FVector(0.01f, 0.01f, 0.01f), 0.10f)
+                                        .SetEase(ETweenEase::InBack)
+                                        .OnComplete([this]() {
+                                            SetActorHiddenInGame(true);
+                                        });
+                                }
+                            });
+                    }
+                });
+
+            FTimerHandle RespawnTimer;
+            GetWorldTimerManager().SetTimer(
+                RespawnTimer,
+                this,
+                &AGameFeelEnemyCharacter::ResetEnemy,
+                3.0f,
+                false);
+            return;
+        }
+    }
+
+    SetActorHiddenInGame(true);
     FTimerHandle RespawnTimer;
     GetWorldTimerManager().SetTimer(
         RespawnTimer,
@@ -227,6 +290,7 @@ void AGameFeelEnemyCharacter::ResetEnemy()
 
     if (VisualRoot)
     {
+        VisualRoot->SetRelativeLocation(FVector::ZeroVector);
         VisualRoot->SetRelativeScale3D(FVector::OneVector);
     }
     if (DynamicMaterial)
