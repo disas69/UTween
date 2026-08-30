@@ -166,7 +166,8 @@ private:
     float SwingToAngle = -85.f;
     TSet<TWeakObjectPtr<AActor>> HitActorsThisSwing;
 
-    bool bUsingGamepadAim = false;
+    bool bIsUsingGamepadAim = false;
+    FVector2D LastMousePosition = FVector2D::ZeroVector;
     float CameraTrauma = 0.f;
     float TraumaTimer = 0.f;
 

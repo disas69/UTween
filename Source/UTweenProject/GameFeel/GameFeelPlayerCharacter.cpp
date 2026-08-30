@@ -250,7 +250,7 @@ void AGameFeelPlayerCharacter::EnhancedMove(const FInputActionValue& Value)
         AddMovementInput(FVector::ForwardVector, MoveVec.Y);
         AddMovementInput(FVector::RightVector, MoveVec.X);
 
-        if (!bUsingGamepadAim)
+        if (!bIsUsingGamepadAim)
         {
             const FVector MoveDir = FVector(MoveVec.Y, MoveVec.X, 0.f).GetSafeNormal();
             if (!MoveDir.IsNearlyZero())
@@ -264,9 +264,9 @@ void AGameFeelPlayerCharacter::EnhancedMove(const FInputActionValue& Value)
 void AGameFeelPlayerCharacter::EnhancedAim(const FInputActionValue& Value)
 {
     const FVector2D AimVec = Value.Get<FVector2D>();
-    if (AimVec.SizeSquared() > 0.05f)
+    if (AimVec.SizeSquared() > 0.04f)
     {
-        bUsingGamepadAim = true;
+        bIsUsingGamepadAim = true;
         const FVector AimDir = FVector(AimVec.Y, AimVec.X, 0.f).GetSafeNormal();
         if (!AimDir.IsNearlyZero())
         {
@@ -277,18 +277,29 @@ void AGameFeelPlayerCharacter::EnhancedAim(const FInputActionValue& Value)
 
 void AGameFeelPlayerCharacter::EnhancedAimCompleted(const FInputActionValue& Value)
 {
-    bUsingGamepadAim = false;
+    // Sticky aim retains last aim direction when stick is released
 }
 
 void AGameFeelPlayerCharacter::AimAtCursor()
 {
-    if (bUsingGamepadAim)
+    APlayerController* PC = Cast<APlayerController>(GetController());
+    if (!PC)
     {
         return;
     }
 
-    APlayerController* PC = Cast<APlayerController>(GetController());
-    if (!PC)
+    float MouseX, MouseY;
+    if (PC->GetMousePosition(MouseX, MouseY))
+    {
+        const FVector2D CurrentMousePos(MouseX, MouseY);
+        if ((CurrentMousePos - LastMousePosition).SizeSquared() > 4.0f)
+        {
+            bIsUsingGamepadAim = false;
+            LastMousePosition = CurrentMousePos;
+        }
+    }
+
+    if (bIsUsingGamepadAim)
     {
         return;
     }
@@ -406,15 +417,24 @@ void AGameFeelPlayerCharacter::PerformAttack()
 {
     if (bIsAttacking)
     {
-        return;
+        if (UTweenSubsystem* TweenSys = UTweenSubsystem::Get(this))
+        {
+            TweenSys->KillByTag(FTweenTag(TEXT("PlayerAttack")));
+        }
+
+        const float CurrentAngle = SwordPivot ? SwordPivot->GetRelativeRotation().Yaw : CurrentRestAngle;
+        SwingFromAngle = CurrentAngle;
+        SwingToAngle = (CurrentAngle >= 0.f) ? -RestStanceAngle : RestStanceAngle;
+    }
+    else
+    {
+        SwingFromAngle = CurrentRestAngle;
+        SwingToAngle = -CurrentRestAngle;
     }
 
     bIsAttacking = true;
     AttackTimer = 0.f;
     HitActorsThisSwing.Empty();
-
-    SwingFromAngle = CurrentRestAngle;
-    SwingToAngle = -CurrentRestAngle;
 
     if (bIsPolished)
     {
@@ -437,6 +457,7 @@ void AGameFeelPlayerCharacter::ExecutePolishedAttack()
             SwordPivot->SetRelativeRotation(FRotator(0.f, Angle, 0.f));
         }
     })
+    .SetTag(FTweenTag(TEXT("PlayerAttack")))
     .SetEase(ETweenEase::OutQuad)
     .OnComplete([this, WindupAngle, OvershootAngle]() {
         if (SlashArcInstance)
@@ -451,6 +472,7 @@ void AGameFeelPlayerCharacter::ExecutePolishedAttack()
             }
             DetectAttackHits();
         })
+        .SetTag(FTweenTag(TEXT("PlayerAttack")))
         .SetEase(ETweenEase::OutBack)
         .OnComplete([this, OvershootAngle]() {
             UTween::Value(this, OvershootAngle, SwingToAngle, 0.035f, [this](float Angle) {
@@ -459,6 +481,7 @@ void AGameFeelPlayerCharacter::ExecutePolishedAttack()
                     SwordPivot->SetRelativeRotation(FRotator(0.f, Angle, 0.f));
                 }
             })
+            .SetTag(FTweenTag(TEXT("PlayerAttack")))
             .SetEase(ETweenEase::InOutQuad)
             .OnComplete([this]() {
                 bIsAttacking = false;
@@ -523,7 +546,7 @@ void AGameFeelPlayerCharacter::DetectAttackHits()
                     }
                     else
                     {
-                        TriggerHitstop(0.055f);
+                        TriggerHitstop(0.08f);
                         AddCameraTrauma(0.35f);
                         TriggerCameraPunchZoom(790.f, 0.05f, 0.20f);
                     }
@@ -561,17 +584,18 @@ void AGameFeelPlayerCharacter::TriggerComboFinishFlourish()
         return;
     }
 
-    AddCameraTrauma(0.65f);
-    TriggerCameraPunchZoom(730.f, 0.06f, 0.30f);
+    AddCameraTrauma(0.70f);
+    TriggerCameraPunchZoom(720.f, 0.06f, 0.35f);
 
-    UGameplayStatics::SetGlobalTimeDilation(World, 0.25f);
+    UGameplayStatics::SetGlobalTimeDilation(World, 0.10f);
 
-    UTween::Value(this, 0.25f, 1.0f, 0.18f, [WorldWeak = TWeakObjectPtr<UWorld>(World)](float Dilation) {
+    UTween::Value(this, 0.10f, 1.0f, 0.30f, [WorldWeak = TWeakObjectPtr<UWorld>(World)](float Dilation) {
         if (WorldWeak.IsValid())
         {
             UGameplayStatics::SetGlobalTimeDilation(WorldWeak.Get(), Dilation);
         }
     })
+    .SetDelay(0.12f)
     .SetTimeMode(ETweenTimeMode::RealTime)
     .SetEase(ETweenEase::OutQuad);
 }

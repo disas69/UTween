@@ -61,8 +61,14 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Stats")
     float KnockbackForce = 900.f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Visuals")
+    TObjectPtr<UMaterialInterface> DissolveMaterial;
+
     UPROPERTY(Transient)
     TObjectPtr<UMaterialInstanceDynamic> DynamicMaterial;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UMaterialInstanceDynamic> DissolveDynamicMaterial;
 
 protected:
     virtual void BeginPlay() override;

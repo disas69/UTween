@@ -37,6 +37,11 @@ AGameFeelEnemyCharacter::AGameFeelEnemyCharacter()
     static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereFinder(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
     static ConstructorHelpers::FObjectFinder<UMaterialInterface> EnemyMatFinder(TEXT("/Game/GameFeel/Materials/MI_GameFeel_Enemy.MI_GameFeel_Enemy"));
     static ConstructorHelpers::FObjectFinder<UMaterialInterface> SwordMatFinder(TEXT("/Game/GameFeel/Materials/MI_GameFeel_Sword.MI_GameFeel_Sword"));
+    static ConstructorHelpers::FObjectFinder<UMaterialInterface> DissolveMatFinder(TEXT("/Game/GameFeel/Materials/MI_GameFeel_EnemyDissolve.MI_GameFeel_EnemyDissolve"));
+    if (DissolveMatFinder.Succeeded())
+    {
+        DissolveMaterial = DissolveMatFinder.Object;
+    }
 
     BodyCylinder = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyCylinder"));
     BodyCylinder->SetupAttachment(VisualRoot);
@@ -235,7 +240,23 @@ void AGameFeelEnemyCharacter::Die()
     {
         if (Player->IsPolishEnabled() && VisualRoot)
         {
-            // Polished 3-step death animation sequence: Flatten -> Pop Up -> Shrink / Implode
+            // 1. Switch to Dissolve Material and animate DissolveAmount
+            if (DissolveMaterial)
+            {
+                DissolveDynamicMaterial = UMaterialInstanceDynamic::Create(DissolveMaterial, this);
+                if (DissolveDynamicMaterial)
+                {
+                    DissolveDynamicMaterial->SetScalarParameterValue(FName("DissolveAmount"), 0.0f);
+                    if (BodyCylinder) BodyCylinder->SetMaterial(0, DissolveDynamicMaterial);
+                    if (TopCapSphere) TopCapSphere->SetMaterial(0, DissolveDynamicMaterial);
+                    if (BottomCapSphere) BottomCapSphere->SetMaterial(0, DissolveDynamicMaterial);
+
+                    UTween::MaterialScalar(DissolveDynamicMaterial, FName("DissolveAmount"), 1.0f, 0.35f)
+                        .SetEase(ETweenEase::InQuad);
+                }
+            }
+
+            // 2. Polished 3-step death choreography: Squash -> Pop Up -> Shrink / Implode
             UTween::ComponentRelativeScale(VisualRoot, FVector(1.6f, 1.6f, 0.2f), 0.07f)
                 .SetEase(ETweenEase::OutQuad)
                 .OnComplete([this]() {
@@ -249,7 +270,7 @@ void AGameFeelEnemyCharacter::Die()
                             .OnComplete([this]() {
                                 if (VisualRoot)
                                 {
-                                    UTween::ComponentRelativeScale(VisualRoot, FVector(0.01f, 0.01f, 0.01f), 0.10f)
+                                    UTween::ComponentRelativeScale(VisualRoot, FVector(0.01f, 0.01f, 0.01f), 0.14f)
                                         .SetEase(ETweenEase::InBack)
                                         .OnComplete([this]() {
                                             SetActorHiddenInGame(true);
@@ -295,6 +316,9 @@ void AGameFeelEnemyCharacter::ResetEnemy()
     }
     if (DynamicMaterial)
     {
+        if (BodyCylinder) BodyCylinder->SetMaterial(0, DynamicMaterial);
+        if (TopCapSphere) TopCapSphere->SetMaterial(0, DynamicMaterial);
+        if (BottomCapSphere) BottomCapSphere->SetMaterial(0, DynamicMaterial);
         DynamicMaterial->SetVectorParameterValue(FName("EmissiveColor"), FLinearColor::Black);
     }
 }
