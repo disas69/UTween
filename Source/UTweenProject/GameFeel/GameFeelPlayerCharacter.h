@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
@@ -45,6 +45,14 @@ public:
 
     void TriggerHitstop(float Duration = 0.055f);
 
+    UFUNCTION(BlueprintCallable, Category = "GameFeel|Camera")
+    void AddCameraTrauma(float Amount);
+
+    UFUNCTION(BlueprintCallable, Category = "GameFeel|Camera")
+    void TriggerCameraPunchZoom(float TargetZoomLength = 790.f, float ZoomInDuration = 0.05f, float ReturnDuration = 0.20f);
+
+    void OnEnemyKilledByPlayer();
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<USpringArmComponent> CameraBoom;
 
@@ -90,6 +98,27 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Input")
     TObjectPtr<UInputAction> TogglePolishAction;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Camera")
+    float DefaultBoomLength = 850.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Camera")
+    float TraumaDecaySpeed = 3.2f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Camera")
+    float MaxYawShake = 2.4f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Camera")
+    float MaxPitchShake = 1.8f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Camera")
+    float MaxRollShake = 2.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Camera")
+    float MaxPositionalShake = 16.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Camera")
+    float ShakeFrequency = 24.0f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Stats")
     float MaxHealth = 100.f;
 
@@ -120,6 +149,7 @@ protected:
 
     void AimAtCursor();
     void DetectAttackHits();
+    void UpdateCameraDynamics(float DeltaTime);
 
 private:
     void ExecutePolishedAttack();
@@ -133,6 +163,8 @@ private:
     TSet<TWeakObjectPtr<AActor>> HitActorsThisSwing;
 
     bool bUsingGamepadAim = false;
+    float CameraTrauma = 0.f;
+    float TraumaTimer = 0.f;
 
     UPROPERTY(Transient)
     TObjectPtr<AGameFeelSlashArc> SlashArcInstance;

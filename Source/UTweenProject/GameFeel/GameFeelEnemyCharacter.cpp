@@ -1,4 +1,4 @@
-﻿#include "GameFeelEnemyCharacter.h"
+#include "GameFeelEnemyCharacter.h"
 
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -191,6 +191,13 @@ void AGameFeelEnemyCharacter::TakeHit(float Damage, const FVector& HitDirection,
 
     if (CurrentHealth <= 0.f)
     {
+        if (bPolishedHit)
+        {
+            if (AGameFeelPlayerCharacter* Player = Cast<AGameFeelPlayerCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
+            {
+                Player->OnEnemyKilledByPlayer();
+            }
+        }
         Die();
     }
 }

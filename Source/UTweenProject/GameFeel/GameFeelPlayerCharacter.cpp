@@ -1,4 +1,4 @@
-﻿#include "GameFeelPlayerCharacter.h"
+#include "GameFeelPlayerCharacter.h"
 
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -79,7 +79,7 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
     CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
     CameraBoom->SetupAttachment(RootComponent);
     CameraBoom->SetUsingAbsoluteRotation(true);
-    CameraBoom->TargetArmLength = 850.f;
+    CameraBoom->TargetArmLength = DefaultBoomLength;
     CameraBoom->SetRelativeRotation(FRotator(-60.f, 0.f, 0.f));
     CameraBoom->bDoCollisionTest = false;
     CameraBoom->bInheritPitch = false;
@@ -174,6 +174,7 @@ void AGameFeelPlayerCharacter::Tick(float DeltaTime)
     Super::Tick(DeltaTime);
 
     AimAtCursor();
+    UpdateCameraDynamics(DeltaTime);
 
     if (bIsAttacking && !bIsPolished)
     {
@@ -291,6 +292,101 @@ void AGameFeelPlayerCharacter::AimAtCursor()
     }
 }
 
+void AGameFeelPlayerCharacter::UpdateCameraDynamics(float DeltaTime)
+{
+    if (!TopDownCamera || !CameraBoom)
+    {
+        return;
+    }
+
+    if (!bIsPolished)
+    {
+        CameraTrauma = 0.f;
+        TopDownCamera->SetRelativeLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
+        CameraBoom->SocketOffset = FMath::VInterpTo(CameraBoom->SocketOffset, FVector::ZeroVector, DeltaTime, 8.0f);
+        CameraBoom->TargetArmLength = FMath::FInterpTo(CameraBoom->TargetArmLength, DefaultBoomLength, DeltaTime, 8.0f);
+        return;
+    }
+
+    // Dynamic Look-Ahead Framing along Facing Vector
+    const FVector TargetOffset = GetActorForwardVector() * 55.f;
+    CameraBoom->SocketOffset = FMath::VInterpTo(CameraBoom->SocketOffset, TargetOffset, DeltaTime, 4.5f);
+
+    // Multi-Harmonic Rotational & Positional Camera Trauma Shake
+    if (CameraTrauma > 0.001f)
+    {
+        CameraTrauma = FMath::Clamp(CameraTrauma - (TraumaDecaySpeed * DeltaTime), 0.f, 1.f);
+        const float Shake = CameraTrauma * CameraTrauma;
+
+        TraumaTimer += DeltaTime * ShakeFrequency;
+
+        const float YawShake = FMath::Sin(TraumaTimer * 1.0f) * MaxYawShake * Shake;
+        const float PitchShake = FMath::Cos(TraumaTimer * 1.37f) * MaxPitchShake * Shake;
+        const float RollShake = FMath::Sin(TraumaTimer * 1.73f) * MaxRollShake * Shake;
+
+        const FVector PosShake = FVector(
+            FMath::Sin(TraumaTimer * 1.15f),
+            FMath::Cos(TraumaTimer * 1.45f),
+            FMath::Sin(TraumaTimer * 1.85f)
+        ) * MaxPositionalShake * Shake;
+
+        TopDownCamera->SetRelativeLocationAndRotation(PosShake, FRotator(PitchShake, YawShake, RollShake));
+    }
+    else
+    {
+        TopDownCamera->SetRelativeLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
+    }
+}
+
+void AGameFeelPlayerCharacter::AddCameraTrauma(float Amount)
+{
+    if (bIsPolished)
+    {
+        CameraTrauma = FMath::Clamp(CameraTrauma + Amount, 0.f, 1.f);
+    }
+}
+
+void AGameFeelPlayerCharacter::TriggerCameraPunchZoom(float TargetZoomLength, float ZoomInDuration, float ReturnDuration)
+{
+    if (!bIsPolished || !CameraBoom)
+    {
+        return;
+    }
+
+    const float CurrentLength = CameraBoom->TargetArmLength;
+
+    UTween::Value(this, CurrentLength, TargetZoomLength, ZoomInDuration, [this](float Length) {
+        if (CameraBoom && bIsPolished)
+        {
+            CameraBoom->TargetArmLength = Length;
+        }
+    })
+    .SetEase(ETweenEase::OutQuad)
+    .OnComplete([this, TargetZoomLength, ReturnDuration]() {
+        if (!bIsPolished || !CameraBoom)
+        {
+            return;
+        }
+
+        UTween::Value(this, TargetZoomLength, DefaultBoomLength, ReturnDuration, [this](float Length) {
+            if (CameraBoom && bIsPolished)
+            {
+                CameraBoom->TargetArmLength = Length;
+            }
+        })
+        .SetEase(ETweenEase::OutQuad);
+    });
+}
+
+void AGameFeelPlayerCharacter::OnEnemyKilledByPlayer()
+{
+    if (bIsPolished)
+    {
+        AddCameraTrauma(0.55f);
+        TriggerCameraPunchZoom(750.f, 0.06f, 0.25f);
+    }
+}
+
 void AGameFeelPlayerCharacter::PerformAttack()
 {
     if (bIsAttacking)
@@ -314,6 +410,7 @@ void AGameFeelPlayerCharacter::PerformAttack()
 void AGameFeelPlayerCharacter::ExecutePolishedAttack()
 {
     LaunchCharacter(GetActorForwardVector() * 360.f, false, false);
+    AddCameraTrauma(0.10f);
 
     const float WindupSign = (SwingFromAngle > 0.f) ? 1.f : -1.f;
     const float WindupAngle = SwingFromAngle + (WindupSign * 18.f);
@@ -398,6 +495,8 @@ void AGameFeelPlayerCharacter::DetectAttackHits()
                 if (bIsPolished)
                 {
                     TriggerHitstop(0.055f);
+                    AddCameraTrauma(0.35f);
+                    TriggerCameraPunchZoom(790.f, 0.05f, 0.20f);
                 }
             }
         }
@@ -432,6 +531,20 @@ void AGameFeelPlayerCharacter::TogglePolishMode()
 void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
 {
     bIsPolished = bEnable;
+
+    if (!bIsPolished)
+    {
+        CameraTrauma = 0.f;
+        if (TopDownCamera)
+        {
+            TopDownCamera->SetRelativeLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
+        }
+        if (CameraBoom)
+        {
+            CameraBoom->SocketOffset = FVector::ZeroVector;
+            CameraBoom->TargetArmLength = DefaultBoomLength;
+        }
+    }
 }
 
 void AGameFeelPlayerCharacter::TakePlayerDamage(float Damage)
