@@ -55,6 +55,22 @@ void FTweenSequence::Resume()
 
 void FTweenSequence::Restart()
 {
+    if (State == ETweenState::Killed)
+    {
+        return;
+    }
+
+    const bool bUnmirrorYoyo = (LoopMode == ETweenLoopMode::Yoyo) && ((CurrentLoop % 2) != 0);
+    if (bUnmirrorYoyo)
+    {
+        for (FSequenceAction& Action : Actions)
+        {
+            const float End = Action.StartTime + Action.Duration;
+            Action.StartTime = FMath::Max(0.f, TotalDuration - End);
+        }
+        Algo::Reverse(Actions);
+    }
+
     Cursor = 0.f;
     CurrentLoop = 0;
     for (FSequenceAction& Action : Actions)
@@ -63,11 +79,17 @@ void FTweenSequence::Restart()
         Action.bComplete = false;
         if (Action.Type == ESequenceActionType::Tween && Action.TweenInstance.IsValid())
         {
+            if (bUnmirrorYoyo)
+            {
+                Action.TweenInstance->SwapStartAndEnd();
+            }
             Action.TweenInstance->Restart();
+            Action.TweenInstance->State = ETweenState::Pending;
         }
         else if (Action.Type == ESequenceActionType::SubSequence && Action.SubSequence.IsValid())
         {
             Action.SubSequence->Restart();
+            Action.SubSequence->State = ETweenState::Pending;
         }
     }
     State = ETweenState::Playing;

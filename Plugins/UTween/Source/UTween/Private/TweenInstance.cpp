@@ -27,7 +27,7 @@ void FTweenInstanceBase::Tick(float DeltaTime)
         DeltaTime -= RemainingDelay;
     }
 
-    if (!bStartFired)
+    if (!bValuesInitialized)
     {
         if (!bUseFrom)
         {
@@ -37,6 +37,11 @@ void FTweenInstanceBase::Tick(float DeltaTime)
         {
             ApplyRelativeOffset();
         }
+        bValuesInitialized = true;
+    }
+
+    if (!bStartFired)
+    {
         bStartFired = true;
 
         if (OnStartCallback)
@@ -92,7 +97,7 @@ void FTweenInstanceBase::Complete()
         return;
     }
 
-    if (!bStartFired)
+    if (!bValuesInitialized)
     {
         if (!bUseFrom)
         {
@@ -102,8 +107,9 @@ void FTweenInstanceBase::Complete()
         {
             ApplyRelativeOffset();
         }
-        bStartFired = true;
+        bValuesInitialized = true;
     }
+    bStartFired = true;
 
     EvaluateAndApply(1.f);
     State = ETweenState::Completed;
@@ -126,6 +132,11 @@ void FTweenInstanceBase::Kill()
     if (State == ETweenState::Killed)
     {
         return;
+    }
+
+    if (bRestoreStartOnKill && bValuesInitialized && State != ETweenState::Completed && IsTargetValid())
+    {
+        EvaluateAndApply(0.f);
     }
 
     State = ETweenState::Killed;
@@ -169,6 +180,11 @@ void FTweenInstanceBase::Restart()
         return;
     }
 
+    if (LoopMode == ETweenLoopMode::Yoyo && (CurrentLoop % 2) != 0)
+    {
+        SwapStartAndEnd();
+    }
+
     Elapsed = 0.f;
     DelayElapsed = 0.f;
     CurrentLoop = 0;
@@ -201,9 +217,11 @@ void FTweenInstanceBase::ResetForPool()
     bAutoKill = true;
     bUseFrom = false;
     bIsRelative = false;
+    bRestoreStartOnKill = false;
     TimeMode = ETweenTimeMode::GameTime;
     State = ETweenState::Killed;
     bStartFired = false;
+    bValuesInitialized = false;
     bHasTarget = false;
     BoundTarget = nullptr;
     OwningSubsystem = nullptr;

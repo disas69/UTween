@@ -458,6 +458,11 @@ void UTweenSubsystem::Tick(float DeltaTime)
                 continue;
             }
 
+            if (Seq->State == ETweenState::Pending && Seq->Actions.Num() > 0)
+            {
+                Seq->State = ETweenState::Playing;
+            }
+
             const float EffectiveDelta = (Seq->TimeMode == ETweenTimeMode::RealTime) ? RealDelta : GameDelta;
             Seq->Tick(EffectiveDelta);
         }
@@ -681,4 +686,3 @@ UTWEEN_API TSharedPtr<TTweenInstance<FLinearColor>> UTweenSubsystem::AcquireTwee
     NewInst->Id = FTweenId::Generate();
     return NewInst;
 }
-

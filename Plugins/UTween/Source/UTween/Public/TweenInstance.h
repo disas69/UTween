@@ -47,6 +47,7 @@ public:
     bool bAutoKill = true;
     bool bUseFrom = false;
     bool bIsRelative = false;
+    bool bRestoreStartOnKill = false;
     ETweenTimeMode TimeMode = ETweenTimeMode::GameTime;
 
     ETweenState State = ETweenState::Pending;
@@ -90,6 +91,7 @@ protected:
     void HandleLoopOrComplete();
 
     bool bStartFired = false;
+    bool bValuesInitialized = false;
 };
 
 namespace UTweenLerp
@@ -222,4 +224,3 @@ protected:
         Swap(StartValue, EndValue);
     }
 };
-

@@ -1206,4 +1206,119 @@ bool FUTweenActorPunchAndUniformScaleTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenRestartRelativeAndYoyoTest,
+    "UTween.Tween.RestartPreservesRelativeAndYoyoOrientation", UTWEEN_TEST_FLAGS)
+
+bool FUTweenRestartRelativeAndYoyoTest::RunTest(const FString& Parameters)
+{
+    float RelCaptured = 0.f;
+    auto RelTween = MakeFloatTween(10.f, 5.f, 1.f, RelCaptured);
+    RelTween->bIsRelative = true;
+
+    RelTween->Tick(0.5f);
+    TestEqual(TEXT("Relative at 50% is 12.5"), RelCaptured, 12.5f, FloatTolerance);
+
+    RelTween->Restart();
+    RelTween->Tick(1.0f);
+    TestEqual(TEXT("Relative after Restart still lands on 15, not 20"), RelCaptured, 15.f, FloatTolerance);
+
+    float YoyoCaptured = 0.f;
+    auto YoyoTween = MakeFloatTween(0.f, 100.f, 1.f, YoyoCaptured);
+    YoyoTween->LoopMode = ETweenLoopMode::Yoyo;
+    YoyoTween->LoopCount = 2;
+
+    YoyoTween->Tick(1.0f);
+    TestEqual(TEXT("Yoyo end of forward cycle (loop 1)"), YoyoCaptured, 100.f, FloatTolerance);
+    TestEqual(TEXT("CurrentLoop is 1 (odd)"), YoyoTween->CurrentLoop, 1);
+
+    YoyoTween->Restart();
+    YoyoTween->Tick(0.25f);
+    TestEqual(TEXT("After Restart on odd yoyo loop, progresses forward (25%)"), YoyoCaptured, 25.f, FloatTolerance);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenSequenceYoyoRestartAndAutoPlayTest,
+    "UTween.Sequence.YoyoRestartAndAutoPlay", UTWEEN_TEST_FLAGS)
+
+bool FUTweenSequenceYoyoRestartAndAutoPlayTest::RunTest(const FString& Parameters)
+{
+    UGameInstance* GI = NewObject<UGameInstance>();
+    UTweenSubsystem* Subsystem = NewObject<UTweenSubsystem>(GI);
+    TestNotNull(TEXT("Subsystem created"), Subsystem);
+
+    float A = 0.f;
+    float B = 0.f;
+    auto T1 = MakeFloatTween(0.f, 100.f, 0.5f, A);
+    auto T2 = MakeFloatTween(0.f, 200.f, 0.5f, B);
+
+    FTweenSequenceHandle SeqHandle = UTween::Sequence(GI);
+    SeqHandle.Append(FTweenHandle(T1))
+             .Append(FTweenHandle(T2))
+             .SetLoops(2, ETweenLoopMode::Yoyo);
+
+    // Without calling SeqHandle.Play(), ticking the subsystem should auto-start the sequence
+    Subsystem->Tick(1.0f);
+    TestEqual(TEXT("End of forward sequence cycle: A=100"), A, 100.f, FloatTolerance);
+    TestEqual(TEXT("End of forward sequence cycle: B=200"), B, 200.f, FloatTolerance);
+
+    // Sequence is now in reverse cycle (CurrentLoop == 1). Restart it and verify forward execution.
+    SeqHandle.Restart();
+    A = 0.f;
+    B = 0.f;
+    Subsystem->Tick(0.25f);
+    TestEqual(TEXT("After Restart on odd yoyo loop, T1 runs first (50%)"), A, 50.f, FloatTolerance);
+    TestEqual(TEXT("T2 has not started yet"), B, 0.f, FloatTolerance);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenPunchDelayedAndCustomCallbacksTest,
+    "UTween.Juice.PunchDelayedBaselineAndUserCallbacks", UTWEEN_TEST_FLAGS)
+
+bool FUTweenPunchDelayedAndCustomCallbacksTest::RunTest(const FString& Parameters)
+{
+    UGameInstance* GI = NewObject<UGameInstance>();
+    UTweenSubsystem* Subsystem = NewObject<UTweenSubsystem>(GI);
+    TestNotNull(TEXT("Subsystem created"), Subsystem);
+
+    UImage* Widget = NewObject<UImage>(GI);
+    Widget->SetRenderTranslation(FVector2D(10.f, 20.f));
+
+    bool bUserCompleteCalled = false;
+    FTweenHandle Punch = UTween::PunchPosition(Widget, FVector2D(50.f, 0.f), 1.0f)
+        .SetDelay(0.5f)
+        .OnComplete([&bUserCompleteCalled]()
+        {
+            bUserCompleteCalled = true;
+        });
+
+    // Move widget during the delay before the punch starts
+    Widget->SetRenderTranslation(FVector2D(300.f, 400.f));
+
+    Subsystem->Tick(0.5f); // Consumes delay
+    Subsystem->Tick(0.5f); // Halfway through punch
+    Subsystem->Tick(0.5f); // Completes punch
+
+    TestTrue(TEXT("User OnComplete callback fired"), bUserCompleteCalled);
+    TestEqual(TEXT("Punch restored post-delay baseline (300, 400)"), Widget->GetRenderTransform().Translation, FVector2D(300.f, 400.f));
+
+    // Also verify mid-flight Kill restores baseline and still fires user OnKill
+    bool bUserKillCalled = false;
+    FTweenHandle PunchToKill = UTween::PunchPosition(Widget, FVector2D(100.f, 0.f), 1.0f)
+        .OnKill([&bUserKillCalled]()
+        {
+            bUserKillCalled = true;
+        });
+
+    Subsystem->Tick(0.25f);
+    TestTrue(TEXT("Widget displaced during punch"), Widget->GetRenderTransform().Translation != FVector2D(300.f, 400.f));
+
+    PunchToKill.Kill();
+    TestTrue(TEXT("User OnKill callback fired"), bUserKillCalled);
+    TestEqual(TEXT("Punch restored baseline on Kill"), Widget->GetRenderTransform().Translation, FVector2D(300.f, 400.f));
+
+    return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -19,7 +19,6 @@ public:
     int32 OutputLink;
     FWeakObjectPtr CallbackTarget;
     FTweenHandle Handle;
-    bool bCompleted = false;
 
     FTweenLatentAction(const FLatentActionInfo& LatentInfo, FTweenHandle InHandle)
         : ExecutionFunction(LatentInfo.ExecutionFunction)
@@ -27,15 +26,12 @@ public:
         , CallbackTarget(LatentInfo.CallbackTarget)
         , Handle(InHandle)
     {
-        Handle.OnComplete([this]()
-        {
-            bCompleted = true;
-        });
     }
 
     virtual void UpdateOperation(FLatentResponse& Response) override
     {
-        bool bShouldFinish = bCompleted || !Handle.IsValid();
+        const ETweenState State = Handle.GetState();
+        const bool bShouldFinish = (State == ETweenState::Completed) || (State == ETweenState::Killed) || !Handle.IsValid();
         Response.FinishAndTriggerIf(bShouldFinish, ExecutionFunction, OutputLink, CallbackTarget);
     }
 };
