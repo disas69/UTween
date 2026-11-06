@@ -16,36 +16,6 @@
 
 namespace
 {
-    struct FFloatingCombatEntry
-    {
-        FVector WorldOrigin = FVector::ZeroVector;
-        FVector2D ScreenOffset = FVector2D::ZeroVector;
-        FVector2D ScreenVelocity = FVector2D::ZeroVector;
-        FString DamageText;
-        FLinearColor PrimaryColor = FLinearColor::White;
-        float Elapsed = 0.0f;
-        float Duration = 0.85f;
-        float Scale = 1.0f;
-        int32 BaseFontSize = 22;
-        bool bPolished = true;
-    };
-
-    struct FEnemyLifeBarState
-    {
-        FVector LastWorldLocation = FVector::ZeroVector;
-        float LastKnownHealthPercent = 1.0f;
-        float DisplayedPercent = 1.0f;
-        float TrailingPercent = 1.0f;
-        float TrailingDelayTimer = 0.0f;
-        float Alpha = 0.0f;
-        float Scale = 1.0f;
-        float ShakeTimer = 0.0f;
-        float DeathHoldTimer = 0.0f;
-    };
-
-    TArray<FFloatingCombatEntry> ActiveFloatingEntries;
-    TMap<TWeakObjectPtr<AGameFeelEnemyCharacter>, FEnemyLifeBarState> EnemyLifeBars;
-
     void DrawOutlinedText(
         FSlateWindowElementList& OutDrawElements,
         int32& LayerId,
@@ -232,8 +202,14 @@ void UGameFeelHUDWidget::SetPolishStatus(bool bEnabled)
 {
     bPolishEnabled = bEnabled;
     PolishBadgePulse = 1.32f;
-    UTween::Value(this, 1.32f, 1.0f, 0.24f, [this](float Pulse) {
-        PolishBadgePulse = Pulse;
+    PolishBadgeTweenHandle.Kill();
+
+    TWeakObjectPtr<UGameFeelHUDWidget> WeakThis(this);
+    PolishBadgeTweenHandle = UTween::Value(this, 1.32f, 1.0f, 0.24f, [WeakThis](float Pulse) {
+        if (UGameFeelHUDWidget* Self = WeakThis.Get())
+        {
+            Self->PolishBadgePulse = Pulse;
+        }
     })
     .SetTimeMode(ETweenTimeMode::RealTime)
     .SetEase(ETweenEase::OutBack);

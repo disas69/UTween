@@ -182,14 +182,18 @@ void AUTweenDemoManager::Demo5_BarrelRoll(AStaticMeshActor* Shape)
 // 6 — Parametric Lissajous orbit: UTWEEN (generic value) driving SetActorLocation via a lambda.
 void AUTweenDemoManager::Demo6_Orbit(AStaticMeshActor* Shape, const FVector& Base)
 {
+    TWeakObjectPtr<AStaticMeshActor> WeakShape(Shape);
     UTWEEN(Shape, 0.f, 2.f * PI,
-        ([Shape, Base](float Theta)
+        ([WeakShape, Base](float Theta)
         {
-            const FVector Offset(
-                80.f * FMath::Sin(Theta),
-                0.f,
-                60.f * FMath::Sin(2.f * Theta));
-            Shape->SetActorLocation(Base + Offset);
+            if (AStaticMeshActor* ValidShape = WeakShape.Get())
+            {
+                const FVector Offset(
+                    80.f * FMath::Sin(Theta),
+                    0.f,
+                    60.f * FMath::Sin(2.f * Theta));
+                ValidShape->SetActorLocation(Base + Offset);
+            }
         }),
         3.f)
         .SetEase(ETweenEase::Linear)

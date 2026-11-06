@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "TweenHandle.h"
 #include "JuiceDummyActor.generated.h"
 
 class UStaticMeshComponent;
@@ -63,6 +64,12 @@ private:
 
     UPROPERTY(Transient)
     TObjectPtr<UMaterialInstanceDynamic> DiscDynMat;
+
+    FTweenHandle PunchScaleHandle;
+    FTweenHandle PunchPositionHandle;
+    FTweenHandle WobbleTweenHandle;
+    FTweenHandle FlashTweenHandle;
+    FTweenHandle DiscScaleTweenHandle;
 
     double LastHitTime = -10.0;
 };

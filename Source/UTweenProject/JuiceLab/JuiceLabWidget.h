@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "TweenHandle.h"
 #include "JuiceLabWidget.generated.h"
 
 class UCanvasPanel;
@@ -126,4 +127,9 @@ private:
     float CurrentHealth = 1000.f;
     float CurrentHealthPercent = 1.0f;
     float GhostHealthPercent = 1.0f;
+
+    FTweenHandle PrimaryHealthTweenHandle;
+    FTweenHandle GhostHealthTweenHandle;
+    FTweenHandle HealthContainerPunchHandle;
+    FTweenHandle ComboPunchHandle;
 };

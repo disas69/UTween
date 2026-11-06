@@ -68,6 +68,10 @@ void AGameFeelSlashArc::TriggerSlash(float Duration, FLinearColor CustomSlashCol
         DynamicSlashMaterial = ArcMesh->CreateAndSetMaterialInstanceDynamic(0);
     }
 
+    ScaleTweenHandle.Kill();
+    RotTweenHandle.Kill();
+    ColorTweenHandle.Kill();
+
     ArcMesh->SetHiddenInGame(false);
     ArcMesh->SetVisibility(true, true);
     ArcMesh->SetRelativeLocation(FVector(4.f, -8.f, 14.f));
@@ -75,35 +79,32 @@ void AGameFeelSlashArc::TriggerSlash(float Duration, FLinearColor CustomSlashCol
     ArcMesh->SetRelativeRotation(FRotator(0.f, -22.f, 0.f));
 
     // Scale and sweep outward quickly using UTween
-    UTween::ComponentRelativeScale(ArcMesh, MaxSlashScale * 1.04f, Duration * 0.55f)
+    ScaleTweenHandle = UTween::ComponentRelativeScale(ArcMesh, MaxSlashScale * 1.04f, Duration * 0.55f)
+        .From(MaxSlashScale)
         .SetEase(ETweenEase::OutQuad);
-    UTween::ComponentRelativeRotation(ArcMesh, FRotator(0.f, -14.f, 0.f), Duration)
-        .SetEase(ETweenEase::OutQuad);
+
+    TWeakObjectPtr<UStaticMeshComponent> WeakArcMesh(ArcMesh);
+    RotTweenHandle = UTween::ComponentRelativeRotation(ArcMesh, FRotator(0.f, -14.f, 0.f), Duration)
+        .From(FRotator(0.f, -22.f, 0.f))
+        .SetEase(ETweenEase::OutQuad)
+        .OnComplete([WeakArcMesh]() {
+            if (UStaticMeshComponent* Mesh = WeakArcMesh.Get())
+            {
+                Mesh->SetVisibility(false);
+            }
+        });
 
     const FLinearColor ActiveColor = (CustomSlashColor.R >= 0.f) ? CustomSlashColor : SlashEmissiveColor;
 
-    // Emissive colored flash & rapid fade to black
+    // Emissive colored flash & rapid fade to black using native SetDelay
     if (DynamicSlashMaterial)
     {
         DynamicSlashMaterial->SetVectorParameterValue(FName("EmissiveColor"), ActiveColor);
-        UTween::Value(this, 0.f, 1.f, Duration * 0.55f, [](float) {})
-            .OnComplete([this, Duration]() {
-                if (DynamicSlashMaterial)
-                {
-                    UTween::MaterialVector(DynamicSlashMaterial, FName("EmissiveColor"), FLinearColor::Black, Duration * 0.45f)
-                        .SetEase(ETweenEase::InQuad);
-                }
-            });
+        ColorTweenHandle = UTween::MaterialVector(DynamicSlashMaterial, FName("EmissiveColor"), FLinearColor::Black, Duration * 0.45f)
+            .From(ActiveColor)
+            .SetDelay(Duration * 0.55f)
+            .SetEase(ETweenEase::InQuad);
     }
-
-    // Shrink out and hide when finished
-    UTween::Value(this, 0.f, 1.f, Duration, [](float) {})
-        .OnComplete([this]() {
-            if (ArcMesh)
-            {
-                ArcMesh->SetVisibility(false);
-            }
-        });
 
     OnSlashTriggered(Duration);
 }

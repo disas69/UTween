@@ -5,7 +5,6 @@
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/World.h"
-#include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UTween.h"
 
@@ -158,20 +157,28 @@ void AJuiceChestActor::OpenChest()
     }
 
     bIsAnimating = true;
+    ChestSequenceHandle.Kill();
 
-    UTween::ShakePosition(this, 5.0f, 0.3f, 16);
+    FTweenSequenceHandle Seq = UTween::Sequence().SetBoundTarget(this);
+    Seq.Append(UTween::ShakePosition(this, 5.0f, 0.3f, 16));
 
     if (LockDynMat)
     {
-        UTween::MaterialVector(LockDynMat, FName("Color"), FLinearColor(4.0f, 3.0f, 0.5f, 1.0f), 0.3f);
+        Seq.Join(UTween::MaterialVector(LockDynMat, FName("Color"), FLinearColor(4.0f, 3.0f, 0.5f, 1.0f), 0.3f));
     }
 
-    FTimerHandle TimerHandle;
-    GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
+    TWeakObjectPtr<AJuiceChestActor> WeakThis(this);
+    Seq.AppendCallback([WeakThis]()
     {
-        if (LidHinge)
+        AJuiceChestActor* Self = WeakThis.Get();
+        if (!Self)
         {
-            UTween::ComponentRelativeRotation(LidHinge, FRotator(-115.f, 0.f, 0.f), 0.75f)
+            return;
+        }
+
+        if (Self->LidHinge)
+        {
+            UTween::ComponentRelativeRotation(Self->LidHinge, FRotator(-115.f, 0.f, 0.f), 0.75f)
                 .SetEase(ETweenEase::OutBounce);
         }
 
@@ -182,11 +189,11 @@ void AJuiceChestActor::OpenChest()
             FVector(15.f,   40.f, 75.f)
         };
 
-        LootSpinHandles.Reset();
+        Self->LootSpinHandles.Reset();
 
-        for (int32 i = 0; i < LootItems.Num(); ++i)
+        for (int32 i = 0; i < Self->LootItems.Num(); ++i)
         {
-            if (UStaticMeshComponent* Item = LootItems[i])
+            if (UStaticMeshComponent* Item = Self->LootItems[i])
             {
                 const float Delay = 0.25f + static_cast<float>(i) * 0.1f;
                 const FVector TargetScale = (i % 2 == 0) ? FVector(0.35f) : FVector(0.3f, 0.3f, 0.15f);
@@ -204,19 +211,23 @@ void AJuiceChestActor::OpenChest()
                     .SetEase(ETweenEase::Linear)
                     .SetLoops(-1, ETweenLoopMode::Restart);
 
-                LootSpinHandles.Add(Spin);
+                Self->LootSpinHandles.Add(Spin);
             }
         }
+    });
 
-        FTimerHandle CompleteTimer;
-        GetWorld()->GetTimerManager().SetTimer(CompleteTimer, [this]()
+    Seq.AppendInterval(0.9f);
+    Seq.OnComplete([WeakThis]()
+    {
+        if (AJuiceChestActor* Self = WeakThis.Get())
         {
-            bIsOpen = true;
-            bIsAnimating = false;
-            OnChestStateChanged.Broadcast(true);
-        }, 0.9f, false);
+            Self->bIsOpen = true;
+            Self->bIsAnimating = false;
+            Self->OnChestStateChanged.Broadcast(true);
+        }
+    });
 
-    }, 0.3f, false);
+    ChestSequenceHandle = Seq.Play();
 }
 
 void AJuiceChestActor::CloseChest()
@@ -227,6 +238,7 @@ void AJuiceChestActor::CloseChest()
     }
 
     bIsAnimating = true;
+    ChestSequenceHandle.Kill();
 
     for (FTweenHandle& Handle : LootSpinHandles)
     {
@@ -245,26 +257,32 @@ void AJuiceChestActor::CloseChest()
         }
     }
 
-    FTimerHandle SlamTimer;
-    GetWorld()->GetTimerManager().SetTimer(SlamTimer, [this]()
+    TWeakObjectPtr<AJuiceChestActor> WeakThis(this);
+    FTweenSequenceHandle Seq = UTween::Sequence().SetBoundTarget(this);
+    Seq.AppendInterval(0.25f);
+
+    if (LidHinge)
     {
-        if (LidHinge)
+        Seq.Append(UTween::ComponentRelativeRotation(LidHinge, FRotator::ZeroRotator, 0.3f)
+            .SetEase(ETweenEase::InQuad));
+    }
+
+    Seq.OnComplete([WeakThis]()
+    {
+        if (AJuiceChestActor* Self = WeakThis.Get())
         {
-            UTween::ComponentRelativeRotation(LidHinge, FRotator::ZeroRotator, 0.3f)
-                .SetEase(ETweenEase::InQuad)
-                .OnComplete([this]()
-                {
-                    UTween::PunchPosition(this, FVector(0.f, 0.f, -8.f), 0.25f, 10);
+            UTween::PunchPosition(Self, FVector(0.f, 0.f, -8.f), 0.25f, 10);
 
-                    if (LockDynMat)
-                    {
-                        UTween::MaterialVector(LockDynMat, FName("Color"), FLinearColor(1.0f, 0.8f, 0.1f, 1.0f), 0.2f);
-                    }
+            if (Self->LockDynMat)
+            {
+                UTween::MaterialVector(Self->LockDynMat, FName("Color"), FLinearColor(1.0f, 0.8f, 0.1f, 1.0f), 0.2f);
+            }
 
-                    bIsOpen = false;
-                    bIsAnimating = false;
-                    OnChestStateChanged.Broadcast(false);
-                });
+            Self->bIsOpen = false;
+            Self->bIsAnimating = false;
+            Self->OnChestStateChanged.Broadcast(false);
         }
-    }, 0.25f, false);
+    });
+
+    ChestSequenceHandle = Seq.Play();
 }

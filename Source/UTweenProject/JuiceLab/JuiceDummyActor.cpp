@@ -132,54 +132,71 @@ void AJuiceDummyActor::TakeHit(float Damage, FVector HitDirection, bool bIsCriti
     const FVector Squash = bIsCritical
         ? FVector(-0.35f, 0.35f, -0.45f) * ComboMultiplier
         : FVector(-0.2f, 0.2f, -0.25f) * ComboMultiplier;
-    UTween::PunchScale(this, Squash, 0.38f, 12, 1.0f);
+    PunchScaleHandle.Kill();
+    PunchScaleHandle = UTween::PunchScale(this, Squash, 0.38f, 12, 1.0f);
 
     const FVector Dir = HitDirection.IsNearlyZero() ? -GetActorForwardVector() : HitDirection.GetSafeNormal();
     const float RecoilDist = (bIsCritical ? 35.f : 18.f) * ComboMultiplier;
-    UTween::PunchPosition(this, Dir * RecoilDist, 0.42f, 10, 0.8f);
+    PunchPositionHandle.Kill();
+    PunchPositionHandle = UTween::PunchPosition(this, Dir * RecoilDist, 0.42f, 10, 0.8f);
 
     if (WobblePivot)
     {
+        WobbleTweenHandle.Kill();
         const FRotator TiltRot(Dir.X * -18.f * ComboMultiplier, 0.f, Dir.Y * 18.f * ComboMultiplier);
-        UTween::ComponentRelativeRotation(WobblePivot, TiltRot, 0.12f)
+        TWeakObjectPtr<AJuiceDummyActor> WeakThis(this);
+        WobbleTweenHandle = UTween::ComponentRelativeRotation(WobblePivot, TiltRot, 0.12f)
             .SetEase(ETweenEase::OutQuad)
-            .OnComplete([WeakPivot = TWeakObjectPtr<USceneComponent>(WobblePivot)]()
+            .OnComplete([WeakThis]()
             {
-                if (WeakPivot.IsValid())
+                if (AJuiceDummyActor* Self = WeakThis.Get())
                 {
-                    UTween::ComponentRelativeRotation(WeakPivot.Get(), FRotator::ZeroRotator, 0.5f)
-                        .SetEase(ETweenEase::OutElastic);
+                    if (Self->WobblePivot)
+                    {
+                        Self->WobbleTweenHandle = UTween::ComponentRelativeRotation(Self->WobblePivot, FRotator::ZeroRotator, 0.5f)
+                            .SetEase(ETweenEase::OutElastic);
+                    }
                 }
             });
     }
 
     if (TorsoDynMat)
     {
+        FlashTweenHandle.Kill();
         const FLinearColor FlashColor = bIsCritical
             ? FLinearColor(8.0f, 6.0f, 0.2f, 1.0f)
             : FLinearColor(6.0f, 0.2f, 0.2f, 1.0f);
 
-        UTween::MaterialVector(TorsoDynMat, FName("Color"), FlashColor, 0.05f)
-            .OnComplete([WeakMat = TWeakObjectPtr<UMaterialInstanceDynamic>(TorsoDynMat)]()
+        TWeakObjectPtr<AJuiceDummyActor> WeakThis(this);
+        FlashTweenHandle = UTween::MaterialVector(TorsoDynMat, FName("Color"), FlashColor, 0.05f)
+            .OnComplete([WeakThis]()
             {
-                if (WeakMat.IsValid())
+                if (AJuiceDummyActor* Self = WeakThis.Get())
                 {
-                    UTween::MaterialVector(WeakMat.Get(), FName("Color"), FLinearColor(0.08f, 0.12f, 0.22f, 1.0f), 0.28f)
-                        .SetEase(ETweenEase::OutQuad);
+                    if (Self->TorsoDynMat)
+                    {
+                        Self->FlashTweenHandle = UTween::MaterialVector(Self->TorsoDynMat, FName("Color"), FLinearColor(0.08f, 0.12f, 0.22f, 1.0f), 0.28f)
+                            .SetEase(ETweenEase::OutQuad);
+                    }
                 }
             });
     }
 
     if (TargetDisc)
     {
-        UTween::ComponentRelativeScale(TargetDisc, FVector(0.6f, 0.6f, 0.12f), 0.1f)
+        DiscScaleTweenHandle.Kill();
+        TWeakObjectPtr<AJuiceDummyActor> WeakThis(this);
+        DiscScaleTweenHandle = UTween::ComponentRelativeScale(TargetDisc, FVector(0.6f, 0.6f, 0.12f), 0.1f)
             .SetEase(ETweenEase::OutQuad)
-            .OnComplete([WeakDisc = TWeakObjectPtr<UStaticMeshComponent>(TargetDisc)]()
+            .OnComplete([WeakThis]()
             {
-                if (WeakDisc.IsValid())
+                if (AJuiceDummyActor* Self = WeakThis.Get())
                 {
-                    UTween::ComponentRelativeScale(WeakDisc.Get(), FVector(0.45f, 0.45f, 0.08f), 0.25f)
-                        .SetEase(ETweenEase::OutBounce);
+                    if (Self->TargetDisc)
+                    {
+                        Self->DiscScaleTweenHandle = UTween::ComponentRelativeScale(Self->TargetDisc, FVector(0.45f, 0.45f, 0.08f), 0.25f)
+                            .SetEase(ETweenEase::OutBounce);
+                    }
                 }
             });
     }

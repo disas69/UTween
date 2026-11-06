@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "TweenHandle.h"
+#include "TweenSequence.h"
 #include "GameFeelEnemyCharacter.generated.h"
 
 class UStaticMeshComponent;
@@ -26,6 +28,7 @@ public:
     void ResetEnemy();
 
     void StartIdleAnimation();
+    void StopIdleAnimation();
 
     UFUNCTION(BlueprintPure, Category = "GameFeel|Enemy")
     float GetHealthPercent() const { return MaxHealth > 0.f ? CurrentHealth / MaxHealth : 0.f; }
@@ -81,4 +84,10 @@ private:
 
     FVector InitialSpawnLocation = FVector::ZeroVector;
     bool bIsDead = false;
+
+    FTweenHandle IdleTweenHandle;
+    FTweenHandle HitScaleHandle;
+    FTweenHandle HitRotHandle;
+    FTweenHandle HitFlashHandle;
+    FTweenSequenceHandle DeathSequenceHandle;
 };

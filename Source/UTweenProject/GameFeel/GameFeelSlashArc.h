@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "TweenHandle.h"
+#include "TweenSequence.h"
 #include "GameFeelSlashArc.generated.h"
 
 class UStaticMeshComponent;
@@ -39,4 +41,9 @@ public:
 protected:
     UPROPERTY(Transient)
     TObjectPtr<UMaterialInstanceDynamic> DynamicSlashMaterial;
+
+private:
+    FTweenHandle ScaleTweenHandle;
+    FTweenHandle RotTweenHandle;
+    FTweenHandle ColorTweenHandle;
 };

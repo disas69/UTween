@@ -274,6 +274,11 @@ void UJuiceLabWidget::BuildProceduralUI()
 
 void UJuiceLabWidget::SetTargetActors(AJuiceDummyActor* InDummy, AJuiceChestActor* InChest)
 {
+    if (DummyActor)
+    {
+        DummyActor->OnDummyHit.RemoveDynamic(this, &UJuiceLabWidget::SpawnDamageNumber);
+    }
+
     DummyActor = InDummy;
     ChestActor = InChest;
 
@@ -295,29 +300,40 @@ void UJuiceLabWidget::ApplyDamage(float Damage, bool bIsCritical)
 
     if (HealthContainer)
     {
-        UTween::PunchScale(HealthContainer, FVector2D(0.06f, 0.12f), 0.22f, 10)
+        HealthContainerPunchHandle.Kill();
+        HealthContainerPunchHandle = UTween::PunchScale(HealthContainer, FVector2D(0.06f, 0.12f), 0.22f, 10)
             .SetTimeMode(ETweenTimeMode::RealTime);
     }
 
+    PrimaryHealthTweenHandle.Kill();
+    GhostHealthTweenHandle.Kill();
+
+    TWeakObjectPtr<UJuiceLabWidget> WeakThis(this);
     const float OldPrim = CurrentHealthPercent;
-    UTween::Value(this, OldPrim, NewPercent, 0.18f, [this](float Val)
+    PrimaryHealthTweenHandle = UTween::Value(this, OldPrim, NewPercent, 0.18f, [WeakThis](float Val)
     {
-        CurrentHealthPercent = Val;
-        if (PrimaryHealthBar)
+        if (UJuiceLabWidget* Self = WeakThis.Get())
         {
-            PrimaryHealthBar->SetPercent(Val);
+            Self->CurrentHealthPercent = Val;
+            if (Self->PrimaryHealthBar)
+            {
+                Self->PrimaryHealthBar->SetPercent(Val);
+            }
         }
     })
     .SetEase(ETweenEase::OutQuad)
     .SetTimeMode(ETweenTimeMode::RealTime);
 
     const float OldGhost = GhostHealthPercent;
-    UTween::Value(this, OldGhost, NewPercent, 0.45f, [this](float Val)
+    GhostHealthTweenHandle = UTween::Value(this, OldGhost, NewPercent, 0.45f, [WeakThis](float Val)
     {
-        GhostHealthPercent = Val;
-        if (GhostHealthBar)
+        if (UJuiceLabWidget* Self = WeakThis.Get())
         {
-            GhostHealthBar->SetPercent(Val);
+            Self->GhostHealthPercent = Val;
+            if (Self->GhostHealthBar)
+            {
+                Self->GhostHealthBar->SetPercent(Val);
+            }
         }
     })
     .SetDelay(0.32f)
@@ -334,6 +350,11 @@ void UJuiceLabWidget::ApplyDamage(float Damage, bool bIsCritical)
 
 void UJuiceLabWidget::ResetHealth()
 {
+    PrimaryHealthTweenHandle.Kill();
+    GhostHealthTweenHandle.Kill();
+    HealthContainerPunchHandle.Kill();
+    ComboPunchHandle.Kill();
+
     CurrentHealth = MaxHealth;
     CurrentHealthPercent = 1.0f;
     GhostHealthPercent = 1.0f;
@@ -394,12 +415,16 @@ void UJuiceLabWidget::SpawnDamageNumber(float Damage, const FVector& WorldLocati
     DmgSlot->SetAutoSize(true);
 
     Text->SetRenderScale(FVector2D(0.2f, 0.2f));
+    Text->SetRenderTranslation(FVector2D::ZeroVector);
+
     UTween::WidgetScale(Text, bIsCritical ? FVector2D(1.4f, 1.4f) : FVector2D(1.0f, 1.0f), 0.28f)
+        .From(FVector2D(0.2f, 0.2f))
         .SetEase(ETweenEase::OutBack)
         .SetTimeMode(ETweenTimeMode::RealTime);
 
-    const FVector2D DriftTarget = ScreenPos - FVector2D(0.f, bIsCritical ? 110.f : 75.f);
-    UTween::CanvasPosition(DmgSlot, DriftTarget, 0.85f)
+    const FVector2D DriftOffset(0.f, bIsCritical ? -110.f : -75.f);
+    UTween::WidgetPosition(Text, DriftOffset, 0.85f)
+        .From(FVector2D::ZeroVector)
         .SetEase(ETweenEase::OutCubic)
         .SetTimeMode(ETweenTimeMode::RealTime);
 
@@ -423,6 +448,8 @@ void UJuiceLabWidget::UpdateComboText(int32 ComboCount)
         return;
     }
 
+    ComboPunchHandle.Kill();
+
     if (ComboCount <= 1)
     {
         ComboText->SetRenderOpacity(0.f);
@@ -432,7 +459,7 @@ void UJuiceLabWidget::UpdateComboText(int32 ComboCount)
     ComboText->SetText(FText::FromString(FString::Printf(TEXT("%d COMBO!"), ComboCount)));
     ComboText->SetRenderOpacity(1.f);
 
-    UTween::PunchScale(ComboText, FVector2D(0.35f, 0.35f), 0.3f, 10)
+    ComboPunchHandle = UTween::PunchScale(ComboText, FVector2D(0.35f, 0.35f), 0.3f, 10)
         .SetTimeMode(ETweenTimeMode::RealTime);
 }
 

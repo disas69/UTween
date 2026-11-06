@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
+#include "TweenHandle.h"
+#include "TweenSequence.h"
 #include "GameFeelPlayerCharacter.generated.h"
 
 class USpringArmComponent;
@@ -12,6 +14,8 @@ class USceneComponent;
 class AGameFeelSlashArc;
 class UInputAction;
 class UInputMappingContext;
+class UMaterialInterface;
+class UMaterialInstanceDynamic;
 
 UCLASS()
 class UTWEENPROJECT_API AGameFeelPlayerCharacter : public ACharacter
@@ -177,4 +181,32 @@ private:
 
     UPROPERTY(Transient)
     TObjectPtr<AGameFeelSlashArc> SlashArcInstance;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UStaticMesh> CachedCapsuleMesh;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UStaticMesh> CachedCylinderMesh;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UStaticMesh> CachedBroadSwordMesh;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UStaticMesh> CachedCubeMesh;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UMaterialInterface> CachedPlayerMaterial;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UMaterialInterface> CachedHandMaterial;
+
+    UPROPERTY(Transient)
+    TObjectPtr<UMaterialInstanceDynamic> SwordDynamicMaterial;
+
+    FTweenSequenceHandle AttackSequenceHandle;
+    FTweenSequenceHandle CameraZoomSequenceHandle;
+    FTweenHandle TimeDilationTweenHandle;
+    FTweenHandle BodyLocationTweenHandle;
+    FTweenHandle BodyRotationTweenHandle;
+    FTweenHandle SwordScaleTweenHandle;
 };

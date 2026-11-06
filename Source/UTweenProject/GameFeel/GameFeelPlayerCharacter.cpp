@@ -51,21 +51,28 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
     static ConstructorHelpers::FObjectFinder<UMaterialInterface> HandMatFinder(TEXT("/Game/GameFeel/Materials/MI_GameFeel_PlayerHand.MI_GameFeel_PlayerHand"));
     static ConstructorHelpers::FObjectFinder<UMaterialInterface> SwordMatFinder(TEXT("/Game/GameFeel/Materials/MI_GameFeel_Sword.MI_GameFeel_Sword"));
 
+    CachedCapsuleMesh = CapsuleFinder.Succeeded() ? CapsuleFinder.Object : nullptr;
+    CachedCylinderMesh = CylinderFinder.Succeeded() ? CylinderFinder.Object : nullptr;
+    CachedBroadSwordMesh = SwordMeshFinder.Succeeded() ? SwordMeshFinder.Object : nullptr;
+    CachedCubeMesh = CubeFinder.Succeeded() ? CubeFinder.Object : nullptr;
+    CachedPlayerMaterial = PlayerMatFinder.Succeeded() ? PlayerMatFinder.Object : nullptr;
+    CachedHandMaterial = HandMatFinder.Succeeded() ? HandMatFinder.Object : nullptr;
+
     BodyCylinder = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyCylinder"));
     BodyCylinder->SetupAttachment(VisualRoot);
     BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, 0.f));
     BodyCylinder->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
     BodyCylinder->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    if (CapsuleFinder.Succeeded())
+    if (CachedCapsuleMesh)
     {
-        BodyCylinder->SetStaticMesh(CapsuleFinder.Object);
+        BodyCylinder->SetStaticMesh(CachedCapsuleMesh);
     }
-    else if (CylinderFinder.Succeeded())
+    else if (CachedCylinderMesh)
     {
-        BodyCylinder->SetStaticMesh(CylinderFinder.Object);
+        BodyCylinder->SetStaticMesh(CachedCylinderMesh);
         BodyCylinder->SetRelativeScale3D(FVector(0.7f, 0.7f, 0.6f));
     }
-    if (PlayerMatFinder.Succeeded()) BodyCylinder->SetMaterial(0, PlayerMatFinder.Object);
+    if (CachedPlayerMaterial) BodyCylinder->SetMaterial(0, CachedPlayerMaterial);
 
     SwordPivot = CreateDefaultSubobject<USceneComponent>(TEXT("SwordPivot"));
     SwordPivot->SetupAttachment(RootComponent);
@@ -80,13 +87,13 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
     TopCapSphere->SetVisibility(true);
     TopCapSphere->SetHiddenInGame(false);
     if (SphereFinder.Succeeded()) TopCapSphere->SetStaticMesh(SphereFinder.Object);
-    if (HandMatFinder.Succeeded())
+    if (CachedHandMaterial)
     {
-        TopCapSphere->SetMaterial(0, HandMatFinder.Object);
+        TopCapSphere->SetMaterial(0, CachedHandMaterial);
     }
-    else if (PlayerMatFinder.Succeeded())
+    else if (CachedPlayerMaterial)
     {
-        TopCapSphere->SetMaterial(0, PlayerMatFinder.Object);
+        TopCapSphere->SetMaterial(0, CachedPlayerMaterial);
     }
 
     BottomCapSphere = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BottomCapSphere"));
@@ -97,7 +104,7 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
     BottomCapSphere->SetVisibility(false);
     BottomCapSphere->SetHiddenInGame(true);
     if (SphereFinder.Succeeded()) BottomCapSphere->SetStaticMesh(SphereFinder.Object);
-    if (PlayerMatFinder.Succeeded()) BottomCapSphere->SetMaterial(0, PlayerMatFinder.Object);
+    if (CachedPlayerMaterial) BottomCapSphere->SetMaterial(0, CachedPlayerMaterial);
 
     CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
     CameraBoom->SetupAttachment(RootComponent);
@@ -121,9 +128,9 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
     NoseMesh->SetRelativeScale3D(FVector(0.22f, 0.22f, 0.22f));
     NoseMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     if (SphereFinder.Succeeded()) NoseMesh->SetStaticMesh(SphereFinder.Object);
-    if (PlayerMatFinder.Succeeded())
+    if (CachedPlayerMaterial)
     {
-        NoseMesh->SetMaterial(0, PlayerMatFinder.Object);
+        NoseMesh->SetMaterial(0, CachedPlayerMaterial);
     }
 
     SwordMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SwordMesh"));
@@ -131,13 +138,13 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
     SwordMesh->SetRelativeLocation(FVector(82.f, 0.f, 2.f));
     SwordMesh->SetRelativeScale3D(FVector(0.72f, 0.40f, 0.08f));
     SwordMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    if (SwordMeshFinder.Succeeded())
+    if (CachedBroadSwordMesh)
     {
-        SwordMesh->SetStaticMesh(SwordMeshFinder.Object);
+        SwordMesh->SetStaticMesh(CachedBroadSwordMesh);
     }
-    else if (CubeFinder.Succeeded())
+    else if (CachedCubeMesh)
     {
-        SwordMesh->SetStaticMesh(CubeFinder.Object);
+        SwordMesh->SetStaticMesh(CachedCubeMesh);
     }
     if (SwordMatFinder.Succeeded()) SwordMesh->SetMaterial(0, SwordMatFinder.Object);
 
@@ -179,9 +186,6 @@ void AGameFeelPlayerCharacter::BeginPlay()
         SwordPivot->SetRelativeRotation(FRotator(0.f, CurrentRestAngle, 0.f));
     }
 
-    UMaterialInterface* PlayerMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/GameFeel/Materials/MI_GameFeel_Player.MI_GameFeel_Player"));
-    UMaterialInterface* HandMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/GameFeel/Materials/MI_GameFeel_PlayerHand.MI_GameFeel_PlayerHand"));
-
     if (NoseMesh && VisualRoot)
     {
         NoseMesh->AttachToComponent(VisualRoot, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
@@ -189,9 +193,9 @@ void AGameFeelPlayerCharacter::BeginPlay()
         NoseMesh->SetRelativeScale3D(FVector(0.22f, 0.22f, 0.22f));
         NoseMesh->SetVisibility(true);
         NoseMesh->SetHiddenInGame(false);
-        if (PlayerMat)
+        if (CachedPlayerMaterial)
         {
-            NoseMesh->SetMaterial(0, PlayerMat);
+            NoseMesh->SetMaterial(0, CachedPlayerMaterial);
         }
     }
 
@@ -202,13 +206,13 @@ void AGameFeelPlayerCharacter::BeginPlay()
         TopCapSphere->SetRelativeScale3D(FVector(0.22f, 0.22f, 0.22f));
         TopCapSphere->SetVisibility(true);
         TopCapSphere->SetHiddenInGame(false);
-        if (HandMat)
+        if (CachedHandMaterial)
         {
-            TopCapSphere->SetMaterial(0, HandMat);
+            TopCapSphere->SetMaterial(0, CachedHandMaterial);
         }
-        else if (PlayerMat)
+        else if (CachedPlayerMaterial)
         {
-            TopCapSphere->SetMaterial(0, PlayerMat);
+            TopCapSphere->SetMaterial(0, CachedPlayerMaterial);
         }
     }
 
@@ -216,6 +220,7 @@ void AGameFeelPlayerCharacter::BeginPlay()
     {
         SwordMesh->SetRelativeLocation(FVector(82.f, 0.f, 2.f));
         SwordMesh->SetRelativeScale3D(FVector(0.72f, 0.40f, 0.08f));
+        SwordDynamicMaterial = SwordMesh->CreateAndSetMaterialInstanceDynamic(0);
     }
 
     if (SlashArcClass && GetWorld())
@@ -501,29 +506,32 @@ void AGameFeelPlayerCharacter::TriggerCameraPunchZoom(float TargetZoomLength, fl
         return;
     }
 
+    CameraZoomSequenceHandle.Kill();
+
     const float CurrentLength = CameraBoom->TargetArmLength;
+    TWeakObjectPtr<AGameFeelPlayerCharacter> WeakThis(this);
 
-    UTween::Value(this, CurrentLength, TargetZoomLength, ZoomInDuration, [this](float Length) {
-        if (CameraBoom && bIsPolished)
-        {
-            CameraBoom->TargetArmLength = Length;
-        }
-    })
-    .SetEase(ETweenEase::OutQuad)
-    .OnComplete([this, TargetZoomLength, ReturnDuration]() {
-        if (!bIsPolished || !CameraBoom)
-        {
-            return;
-        }
-
-        UTween::Value(this, TargetZoomLength, DefaultBoomLength, ReturnDuration, [this](float Length) {
-            if (CameraBoom && bIsPolished)
+    CameraZoomSequenceHandle = UTween::Sequence()
+        .SetBoundTarget(this)
+        .Append(UTween::Value(this, CurrentLength, TargetZoomLength, ZoomInDuration, [WeakThis](float Length) {
+            if (AGameFeelPlayerCharacter* Self = WeakThis.Get())
             {
-                CameraBoom->TargetArmLength = Length;
+                if (Self->CameraBoom && Self->bIsPolished)
+                {
+                    Self->CameraBoom->TargetArmLength = Length;
+                }
             }
-        })
-        .SetEase(ETweenEase::OutQuad);
-    });
+        }).SetEase(ETweenEase::OutQuad))
+        .Append(UTween::Value(this, TargetZoomLength, DefaultBoomLength, ReturnDuration, [WeakThis](float Length) {
+            if (AGameFeelPlayerCharacter* Self = WeakThis.Get())
+            {
+                if (Self->CameraBoom && Self->bIsPolished)
+                {
+                    Self->CameraBoom->TargetArmLength = Length;
+                }
+            }
+        }).SetEase(ETweenEase::OutQuad))
+        .Play();
 }
 
 void AGameFeelPlayerCharacter::OnEnemyKilledByPlayer()
@@ -539,10 +547,10 @@ void AGameFeelPlayerCharacter::PerformAttack()
 {
     if (bIsAttacking)
     {
-        if (UTweenSubsystem* TweenSys = UTweenSubsystem::Get(this))
-        {
-            TweenSys->KillByTag(FTweenTag(TEXT("PlayerAttack")));
-        }
+        AttackSequenceHandle.Kill();
+        BodyLocationTweenHandle.Kill();
+        BodyRotationTweenHandle.Kill();
+        SwordScaleTweenHandle.Kill();
 
         const float CurrentAngle = SwordPivot ? SwordPivot->GetRelativeRotation().Yaw : CurrentRestAngle;
         SwingFromAngle = CurrentAngle;
@@ -569,6 +577,8 @@ void AGameFeelPlayerCharacter::ExecutePolishedAttack()
     const float WindupSign = (SwingFromAngle > 0.f) ? 1.f : -1.f;
     const int32 ComboStep = CurrentCombo % 3;
 
+    TWeakObjectPtr<AGameFeelPlayerCharacter> WeakThis(this);
+
     FLinearColor SlashColor;
     if (ComboStep == 0)
     {
@@ -588,13 +598,17 @@ void AGameFeelPlayerCharacter::ExecutePolishedAttack()
         if (VisualRoot)
         {
             const float LeanAngle = (SwingFromAngle > 0.f) ? 12.f : -12.f;
-            UTween::ComponentRelativeRotation(VisualRoot, FRotator(-10.f, 0.f, LeanAngle), 0.08f)
+            BodyRotationTweenHandle.Kill();
+            BodyRotationTweenHandle = UTween::ComponentRelativeRotation(VisualRoot, FRotator(-10.f, 0.f, LeanAngle), 0.08f)
                 .SetEase(ETweenEase::OutQuad)
-                .OnComplete([this]() {
-                    if (VisualRoot)
+                .OnComplete([WeakThis]() {
+                    if (AGameFeelPlayerCharacter* Self = WeakThis.Get())
                     {
-                        UTween::ComponentRelativeRotation(VisualRoot, FRotator::ZeroRotator, 0.12f)
-                            .SetEase(ETweenEase::OutQuad);
+                        if (Self->VisualRoot)
+                        {
+                            Self->BodyRotationTweenHandle = UTween::ComponentRelativeRotation(Self->VisualRoot, FRotator::ZeroRotator, 0.12f)
+                                .SetEase(ETweenEase::OutQuad);
+                        }
                     }
                 });
         }
@@ -607,26 +621,34 @@ void AGameFeelPlayerCharacter::ExecutePolishedAttack()
 
         if (VisualRoot)
         {
-            UTween::ComponentRelativeLocation(VisualRoot, FVector(0.f, 0.f, 28.f), 0.08f)
+            BodyLocationTweenHandle.Kill();
+            BodyLocationTweenHandle = UTween::ComponentRelativeLocation(VisualRoot, FVector(0.f, 0.f, 28.f), 0.08f)
                 .SetEase(ETweenEase::OutQuad)
-                .OnComplete([this]() {
-                    if (VisualRoot)
+                .OnComplete([WeakThis]() {
+                    if (AGameFeelPlayerCharacter* Self = WeakThis.Get())
                     {
-                        UTween::ComponentRelativeLocation(VisualRoot, FVector::ZeroVector, 0.08f)
-                            .SetEase(ETweenEase::InBack);
+                        if (Self->VisualRoot)
+                        {
+                            Self->BodyLocationTweenHandle = UTween::ComponentRelativeLocation(Self->VisualRoot, FVector::ZeroVector, 0.08f)
+                                .SetEase(ETweenEase::InBack);
+                        }
                     }
                 });
         }
 
         if (SwordMesh)
         {
-            UTween::ComponentRelativeScale(SwordMesh, FVector(1.05f, 0.48f, 0.10f), 0.08f)
+            SwordScaleTweenHandle.Kill();
+            SwordScaleTweenHandle = UTween::ComponentRelativeScale(SwordMesh, FVector(1.05f, 0.48f, 0.10f), 0.08f)
                 .SetEase(ETweenEase::OutQuad)
-                .OnComplete([this]() {
-                    if (SwordMesh)
+                .OnComplete([WeakThis]() {
+                    if (AGameFeelPlayerCharacter* Self = WeakThis.Get())
                     {
-                        UTween::ComponentRelativeScale(SwordMesh, FVector(0.74f, 0.42f, 0.08f), 0.14f)
-                            .SetEase(ETweenEase::OutElastic);
+                        if (Self->SwordMesh)
+                        {
+                            Self->SwordScaleTweenHandle = UTween::ComponentRelativeScale(Self->SwordMesh, FVector(0.74f, 0.42f, 0.08f), 0.14f)
+                                .SetEase(ETweenEase::OutElastic);
+                        }
                     }
                 });
         }
@@ -634,62 +656,78 @@ void AGameFeelPlayerCharacter::ExecutePolishedAttack()
 
     if (ComboStep < 2 && SwordMesh)
     {
-        UTween::ComponentRelativeScale(SwordMesh, FVector(0.92f, 0.46f, 0.09f), 0.05f)
+        SwordScaleTweenHandle.Kill();
+        SwordScaleTweenHandle = UTween::ComponentRelativeScale(SwordMesh, FVector(0.92f, 0.46f, 0.09f), 0.05f)
             .SetEase(ETweenEase::OutQuad)
-            .OnComplete([this]() {
-                if (SwordMesh)
+            .OnComplete([WeakThis]() {
+                if (AGameFeelPlayerCharacter* Self = WeakThis.Get())
                 {
-                    UTween::ComponentRelativeScale(SwordMesh, FVector(0.74f, 0.42f, 0.08f), 0.08f)
-                        .SetEase(ETweenEase::OutQuad);
+                    if (Self->SwordMesh)
+                    {
+                        Self->SwordScaleTweenHandle = UTween::ComponentRelativeScale(Self->SwordMesh, FVector(0.74f, 0.42f, 0.08f), 0.08f)
+                            .SetEase(ETweenEase::OutQuad);
+                    }
                 }
             });
     }
 
     const float WindupAngle = SwingFromAngle + (WindupSign * 18.f);
     const float OvershootAngle = SwingToAngle - (WindupSign * 12.f);
+    const float TargetRestAngle = SwingToAngle;
 
-    UTween::Value(this, SwingFromAngle, WindupAngle, 0.045f, [this](float Angle) {
-        if (SwordPivot)
-        {
-            SwordPivot->SetRelativeRotation(FRotator(0.f, Angle, 0.f));
-        }
-    })
-    .SetTag(FTweenTag(TEXT("PlayerAttack")))
-    .SetEase(ETweenEase::OutQuad)
-    .OnComplete([this, WindupAngle, OvershootAngle, SlashColor]() {
-        if (SlashArcInstance)
-        {
-            SlashArcInstance->TriggerSlash(0.32f, SlashColor);
-        }
-
-        UTween::Value(this, WindupAngle, OvershootAngle, 0.12f, [this](float Angle) {
-            if (SwordPivot)
-            {
-                SwordPivot->SetRelativeRotation(FRotator(0.f, Angle, 0.f));
-            }
-            DetectAttackHits();
-        })
+    AttackSequenceHandle.Kill();
+    AttackSequenceHandle = UTween::Sequence()
+        .SetBoundTarget(this)
         .SetTag(FTweenTag(TEXT("PlayerAttack")))
-        .SetEase(ETweenEase::OutBack)
-        .OnComplete([this, OvershootAngle]() {
-            UTween::Value(this, OvershootAngle, SwingToAngle, 0.035f, [this](float Angle) {
-                if (SwordPivot)
+        .Append(UTween::Value(this, SwingFromAngle, WindupAngle, 0.045f, [WeakThis](float Angle) {
+            if (AGameFeelPlayerCharacter* Self = WeakThis.Get())
+            {
+                if (Self->SwordPivot)
                 {
-                    SwordPivot->SetRelativeRotation(FRotator(0.f, Angle, 0.f));
+                    Self->SwordPivot->SetRelativeRotation(FRotator(0.f, Angle, 0.f));
                 }
-            })
-            .SetTag(FTweenTag(TEXT("PlayerAttack")))
-            .SetEase(ETweenEase::InOutQuad)
-            .OnComplete([this]() {
-                bIsAttacking = false;
-                CurrentRestAngle = SwingToAngle;
-                if (SwordPivot)
+            }
+        }).SetEase(ETweenEase::OutQuad))
+        .AppendCallback([WeakThis, SlashColor]() {
+            if (AGameFeelPlayerCharacter* Self = WeakThis.Get())
+            {
+                if (Self->SlashArcInstance)
                 {
-                    SwordPivot->SetRelativeRotation(FRotator(0.f, CurrentRestAngle, 0.f));
+                    Self->SlashArcInstance->TriggerSlash(0.32f, SlashColor);
                 }
-            });
-        });
-    });
+            }
+        })
+        .Append(UTween::Value(this, WindupAngle, OvershootAngle, 0.12f, [WeakThis](float Angle) {
+            if (AGameFeelPlayerCharacter* Self = WeakThis.Get())
+            {
+                if (Self->SwordPivot)
+                {
+                    Self->SwordPivot->SetRelativeRotation(FRotator(0.f, Angle, 0.f));
+                }
+                Self->DetectAttackHits();
+            }
+        }).SetEase(ETweenEase::OutBack))
+        .Append(UTween::Value(this, OvershootAngle, TargetRestAngle, 0.035f, [WeakThis](float Angle) {
+            if (AGameFeelPlayerCharacter* Self = WeakThis.Get())
+            {
+                if (Self->SwordPivot)
+                {
+                    Self->SwordPivot->SetRelativeRotation(FRotator(0.f, Angle, 0.f));
+                }
+            }
+        }).SetEase(ETweenEase::InOutQuad))
+        .OnComplete([WeakThis, TargetRestAngle]() {
+            if (AGameFeelPlayerCharacter* Self = WeakThis.Get())
+            {
+                Self->bIsAttacking = false;
+                Self->CurrentRestAngle = TargetRestAngle;
+                if (Self->SwordPivot)
+                {
+                    Self->SwordPivot->SetRelativeRotation(FRotator(0.f, Self->CurrentRestAngle, 0.f));
+                }
+            }
+        })
+        .Play();
 }
 
 void AGameFeelPlayerCharacter::DetectAttackHits()
@@ -766,9 +804,10 @@ void AGameFeelPlayerCharacter::TriggerHitstop(float Duration)
         return;
     }
 
+    TimeDilationTweenHandle.Kill();
     UGameplayStatics::SetGlobalTimeDilation(World, 0.001f);
 
-    UTween::Value(this, 0.f, 1.f, Duration, [](float) {})
+    TimeDilationTweenHandle = UTween::Value(this, 0.f, 1.f, Duration, [](float) {})
         .SetTimeMode(ETweenTimeMode::RealTime)
         .OnComplete([WorldWeak = TWeakObjectPtr<UWorld>(World)]() {
             if (WorldWeak.IsValid())
@@ -789,9 +828,10 @@ void AGameFeelPlayerCharacter::TriggerComboFinishFlourish()
     AddCameraTrauma(0.70f);
     TriggerCameraPunchZoom(DefaultBoomLength - 150.f, 0.06f, 0.35f);
 
+    TimeDilationTweenHandle.Kill();
     UGameplayStatics::SetGlobalTimeDilation(World, 0.10f);
 
-    UTween::Value(this, 0.10f, 1.0f, 0.30f, [WorldWeak = TWeakObjectPtr<UWorld>(World)](float Dilation) {
+    TimeDilationTweenHandle = UTween::Value(this, 0.10f, 1.0f, 0.30f, [WorldWeak = TWeakObjectPtr<UWorld>(World)](float Dilation) {
         if (WorldWeak.IsValid())
         {
             UGameplayStatics::SetGlobalTimeDilation(WorldWeak.Get(), Dilation);
@@ -828,11 +868,6 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
         }
     }
 
-    UStaticMesh* CapsuleMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/GameFeel/Meshes/SM_GameFeel_Capsule.SM_GameFeel_Capsule"));
-    UStaticMesh* CylinderMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
-    UStaticMesh* BroadSwordMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/GameFeel/Meshes/SM_GameFeel_BroadSword.SM_GameFeel_BroadSword"));
-    UStaticMesh* CubeMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
-
     if (bIsPolished)
     {
         DefaultBoomLength = 1520.f;
@@ -845,9 +880,9 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
             CameraBoom->TargetArmLength = DefaultBoomLength;
             CameraBoom->SetRelativeRotation(FRotator(-48.f, 0.f, 0.f));
         }
-        if (BodyCylinder && CapsuleMesh)
+        if (BodyCylinder && CachedCapsuleMesh)
         {
-            BodyCylinder->SetStaticMesh(CapsuleMesh);
+            BodyCylinder->SetStaticMesh(CachedCapsuleMesh);
             BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, -16.f));
             BodyCylinder->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
         }
@@ -860,16 +895,24 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
         }
         if (SwordMesh)
         {
-            if (BroadSwordMesh)
+            if (CachedBroadSwordMesh)
             {
-                SwordMesh->SetStaticMesh(BroadSwordMesh);
+                SwordMesh->SetStaticMesh(CachedBroadSwordMesh);
             }
             SwordMesh->SetRelativeLocation(FVector(82.f, 0.f, 2.f));
             SwordMesh->SetRelativeScale3D(FVector(0.72f, 0.40f, 0.08f));
-            if (UMaterialInstanceDynamic* SwordMID = SwordMesh->CreateAndSetMaterialInstanceDynamic(0))
+            if (!SwordDynamicMaterial)
             {
-                SwordMID->SetVectorParameterValue(FName("BaseColor"), FLinearColor(1.0f, 0.62f, 0.12f, 1.0f));
-                SwordMID->SetVectorParameterValue(FName("EmissiveColor"), FLinearColor(5.0f, 2.3f, 0.35f, 1.0f));
+                SwordDynamicMaterial = SwordMesh->CreateAndSetMaterialInstanceDynamic(0);
+            }
+            else
+            {
+                SwordMesh->SetMaterial(0, SwordDynamicMaterial);
+            }
+            if (SwordDynamicMaterial)
+            {
+                SwordDynamicMaterial->SetVectorParameterValue(FName("BaseColor"), FLinearColor(1.0f, 0.62f, 0.12f, 1.0f));
+                SwordDynamicMaterial->SetVectorParameterValue(FName("EmissiveColor"), FLinearColor(5.0f, 2.3f, 0.35f, 1.0f));
             }
         }
     }
@@ -878,6 +921,13 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
         CurrentCombo = 0;
         CameraTrauma = 0.f;
         DefaultBoomLength = 1350.f;
+
+        AttackSequenceHandle.Kill();
+        CameraZoomSequenceHandle.Kill();
+        TimeDilationTweenHandle.Kill();
+        BodyLocationTweenHandle.Kill();
+        BodyRotationTweenHandle.Kill();
+        SwordScaleTweenHandle.Kill();
 
         if (UTweenSubsystem* TweenSys = UTweenSubsystem::Get(this))
         {
@@ -902,9 +952,9 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
             CameraBoom->TargetArmLength = DefaultBoomLength;
             CameraBoom->SetRelativeRotation(FRotator(-52.f, 0.f, 0.f));
         }
-        if (BodyCylinder && CylinderMesh)
+        if (BodyCylinder && CachedCylinderMesh)
         {
-            BodyCylinder->SetStaticMesh(CylinderMesh);
+            BodyCylinder->SetStaticMesh(CachedCylinderMesh);
             BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, -10.f));
             BodyCylinder->SetRelativeScale3D(FVector(0.68f, 0.68f, 0.62f));
         }
@@ -915,16 +965,24 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
         }
         if (SwordMesh)
         {
-            if (CubeMesh)
+            if (CachedCubeMesh)
             {
-                SwordMesh->SetStaticMesh(CubeMesh);
+                SwordMesh->SetStaticMesh(CachedCubeMesh);
             }
             SwordMesh->SetRelativeLocation(FVector(66.f, 0.f, 2.f));
             SwordMesh->SetRelativeScale3D(FVector(0.70f, 0.16f, 0.05f));
-            if (UMaterialInstanceDynamic* SwordMID = SwordMesh->CreateAndSetMaterialInstanceDynamic(0))
+            if (!SwordDynamicMaterial)
             {
-                SwordMID->SetVectorParameterValue(FName("BaseColor"), FLinearColor(0.90f, 0.90f, 0.94f, 1.0f));
-                SwordMID->SetVectorParameterValue(FName("EmissiveColor"), FLinearColor(0.0f, 0.0f, 0.0f, 1.0f));
+                SwordDynamicMaterial = SwordMesh->CreateAndSetMaterialInstanceDynamic(0);
+            }
+            else
+            {
+                SwordMesh->SetMaterial(0, SwordDynamicMaterial);
+            }
+            if (SwordDynamicMaterial)
+            {
+                SwordDynamicMaterial->SetVectorParameterValue(FName("BaseColor"), FLinearColor(0.90f, 0.90f, 0.94f, 1.0f));
+                SwordDynamicMaterial->SetVectorParameterValue(FName("EmissiveColor"), FLinearColor(0.0f, 0.0f, 0.0f, 1.0f));
             }
         }
         if (SlashArcInstance && SlashArcInstance->ArcMesh)
@@ -951,15 +1009,15 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
                 }
                 if (Enemy->BodyCylinder)
                 {
-                    if (bIsPolished && CapsuleMesh)
+                    if (bIsPolished && CachedCapsuleMesh)
                     {
-                        Enemy->BodyCylinder->SetStaticMesh(CapsuleMesh);
+                        Enemy->BodyCylinder->SetStaticMesh(CachedCapsuleMesh);
                         Enemy->BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, -16.f));
                         Enemy->BodyCylinder->SetRelativeScale3D(FVector(0.92f, 0.92f, 0.92f));
                     }
-                    else if (!bIsPolished && CylinderMesh)
+                    else if (!bIsPolished && CachedCylinderMesh)
                     {
-                        Enemy->BodyCylinder->SetStaticMesh(CylinderMesh);
+                        Enemy->BodyCylinder->SetStaticMesh(CachedCylinderMesh);
                         Enemy->BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, -10.f));
                         Enemy->BodyCylinder->SetRelativeScale3D(FVector(0.64f, 0.64f, 0.58f));
                     }

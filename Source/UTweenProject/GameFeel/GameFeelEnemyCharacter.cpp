@@ -132,6 +132,11 @@ void AGameFeelEnemyCharacter::BeginPlay()
         if (NoseMesh && DynamicMaterial) NoseMesh->SetMaterial(0, DynamicMaterial);
     }
 
+    if (DissolveMaterial)
+    {
+        DissolveDynamicMaterial = UMaterialInstanceDynamic::Create(DissolveMaterial, this);
+    }
+
     StartIdleAnimation();
 }
 
@@ -228,39 +233,43 @@ void AGameFeelEnemyCharacter::TakeHit(float Damage, const FVector& HitDirection,
         const FVector LaunchVel = HitDirection * (KnockbackForce * 1.3f) + FVector(0.f, 0.f, 120.f);
         LaunchCharacter(LaunchVel, true, true);
 
-        if (UTweenSubsystem* TweenSys = UTweenSubsystem::Get(this))
-        {
-            TweenSys->KillByTag(FTweenTag(TEXT("EnemyIdle")));
-        }
+        StopIdleAnimation();
+        HitScaleHandle.Kill();
+        HitRotHandle.Kill();
+        HitFlashHandle.Kill();
 
         // 1. Emissive Warm Golden-Peach Hit Flash via UTween
         if (DynamicMaterial)
         {
-            DynamicMaterial->SetVectorParameterValue(FName("EmissiveColor"), FLinearColor(5.5f, 3.2f, 1.4f, 1.0f));
-            UTween::MaterialVector(DynamicMaterial, FName("EmissiveColor"), FLinearColor::Black, 0.18f)
+            HitFlashHandle = UTween::MaterialVector(DynamicMaterial, FName("EmissiveColor"), FLinearColor::Black, 0.18f)
+                .From(FLinearColor(5.5f, 3.2f, 1.4f, 1.0f))
                 .SetEase(ETweenEase::OutQuad);
         }
 
         // 2. Squash & Stretch Elasticity + Angular Flinch Recoil via UTween
         if (VisualRoot)
         {
-            VisualRoot->SetRelativeScale3D(FVector(0.84f, 0.84f, 1.38f));
             const FRotator FlinchRot(
                 FMath::RandRange(-12.f, 12.f),
                 FMath::RandRange(-18.f, 18.f),
                 FMath::RandRange(-8.f, 8.f));
-            VisualRoot->SetRelativeRotation(FlinchRot);
 
-            UTween::ComponentRelativeScale(VisualRoot, FVector(1.0f, 1.0f, 1.0f), 0.28f)
+            TWeakObjectPtr<AGameFeelEnemyCharacter> WeakThis(this);
+            HitScaleHandle = UTween::ComponentRelativeScale(VisualRoot, FVector::OneVector, 0.28f)
+                .From(FVector(0.84f, 0.84f, 1.38f))
                 .SetEase(ETweenEase::OutElastic)
-                .OnComplete([this]() {
-                    if (!bIsDead)
+                .OnComplete([WeakThis]() {
+                    if (AGameFeelEnemyCharacter* Self = WeakThis.Get())
                     {
-                        StartIdleAnimation();
+                        if (!Self->bIsDead)
+                        {
+                            Self->StartIdleAnimation();
+                        }
                     }
                 });
 
-            UTween::ComponentRelativeRotation(VisualRoot, FRotator::ZeroRotator, 0.32f)
+            HitRotHandle = UTween::ComponentRelativeRotation(VisualRoot, FRotator::ZeroRotator, 0.32f)
+                .From(FlinchRot)
                 .SetEase(ETweenEase::OutElastic);
         }
 
@@ -307,55 +316,55 @@ void AGameFeelEnemyCharacter::Die()
     bIsDead = true;
     SetActorEnableCollision(false);
 
-    if (UTweenSubsystem* TweenSys = UTweenSubsystem::Get(this))
-    {
-        TweenSys->KillByTag(FTweenTag(TEXT("EnemyIdle")));
-    }
+    StopIdleAnimation();
+    HitScaleHandle.Kill();
+    HitRotHandle.Kill();
+    HitFlashHandle.Kill();
+    DeathSequenceHandle.Kill();
 
     if (AGameFeelPlayerCharacter* Player = Cast<AGameFeelPlayerCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
     {
         if (Player->IsPolishEnabled() && VisualRoot)
         {
             // 1. Switch to Dissolve Material and animate DissolveAmount
-            if (DissolveMaterial)
+            if (!DissolveDynamicMaterial && DissolveMaterial)
             {
                 DissolveDynamicMaterial = UMaterialInstanceDynamic::Create(DissolveMaterial, this);
-                if (DissolveDynamicMaterial)
-                {
-                    DissolveDynamicMaterial->SetScalarParameterValue(FName("DissolveAmount"), 0.0f);
-                    if (BodyCylinder) BodyCylinder->SetMaterial(0, DissolveDynamicMaterial);
-                    if (TopCapSphere) TopCapSphere->SetMaterial(0, DissolveDynamicMaterial);
-                    if (BottomCapSphere) BottomCapSphere->SetMaterial(0, DissolveDynamicMaterial);
-                    if (NoseMesh) NoseMesh->SetMaterial(0, DissolveDynamicMaterial);
+            }
+            if (DissolveDynamicMaterial)
+            {
+                DissolveDynamicMaterial->SetScalarParameterValue(FName("DissolveAmount"), 0.0f);
+                if (BodyCylinder) BodyCylinder->SetMaterial(0, DissolveDynamicMaterial);
+                if (TopCapSphere) TopCapSphere->SetMaterial(0, DissolveDynamicMaterial);
+                if (BottomCapSphere) BottomCapSphere->SetMaterial(0, DissolveDynamicMaterial);
+                if (NoseMesh) NoseMesh->SetMaterial(0, DissolveDynamicMaterial);
 
-                    UTween::MaterialScalar(DissolveDynamicMaterial, FName("DissolveAmount"), 1.0f, 0.35f)
-                        .SetEase(ETweenEase::InQuad);
-                }
+                UTween::MaterialScalar(DissolveDynamicMaterial, FName("DissolveAmount"), 1.0f, 0.35f)
+                    .From(0.0f)
+                    .SetEase(ETweenEase::InQuad);
             }
 
-            // 2. Polished 3-step death choreography: Squash -> Pop Up -> Shrink / Implode
-            UTween::ComponentRelativeScale(VisualRoot, FVector(1.6f, 1.6f, 0.2f), 0.07f)
-                .SetEase(ETweenEase::OutQuad)
-                .OnComplete([this]() {
-                    if (VisualRoot)
+            // 2. Polished 3-step death choreography via FTweenSequence: Squash -> Pop Up -> Shrink / Implode
+            TWeakObjectPtr<AGameFeelEnemyCharacter> WeakThis(this);
+            DeathSequenceHandle = UTween::Sequence()
+                .SetBoundTarget(this)
+                .Append(UTween::ComponentRelativeScale(VisualRoot, FVector(1.6f, 1.6f, 0.2f), 0.07f)
+                    .SetEase(ETweenEase::OutQuad))
+                .Append(UTween::ComponentRelativeLocation(VisualRoot, FVector(0.f, 0.f, 60.f), 0.12f)
+                    .SetEase(ETweenEase::OutBack))
+                .Join(UTween::ComponentRelativeScale(VisualRoot, FVector(0.7f, 0.7f, 1.5f), 0.12f)
+                    .From(FVector(1.6f, 1.6f, 0.2f))
+                    .SetEase(ETweenEase::OutBack))
+                .Append(UTween::ComponentRelativeScale(VisualRoot, FVector(0.01f, 0.01f, 0.01f), 0.14f)
+                    .From(FVector(0.7f, 0.7f, 1.5f))
+                    .SetEase(ETweenEase::InBack))
+                .OnComplete([WeakThis]() {
+                    if (AGameFeelEnemyCharacter* Self = WeakThis.Get())
                     {
-                        UTween::ComponentRelativeLocation(VisualRoot, FVector(0.f, 0.f, 60.f), 0.12f)
-                            .SetEase(ETweenEase::OutBack);
-
-                        UTween::ComponentRelativeScale(VisualRoot, FVector(0.7f, 0.7f, 1.5f), 0.12f)
-                            .SetEase(ETweenEase::OutBack)
-                            .OnComplete([this]() {
-                                if (VisualRoot)
-                                {
-                                    UTween::ComponentRelativeScale(VisualRoot, FVector(0.01f, 0.01f, 0.01f), 0.14f)
-                                        .SetEase(ETweenEase::InBack)
-                                        .OnComplete([this]() {
-                                            SetActorHiddenInGame(true);
-                                        });
-                                }
-                            });
+                        Self->SetActorHiddenInGame(true);
                     }
-                });
+                })
+                .Play();
 
             FTimerHandle RespawnTimer;
             GetWorldTimerManager().SetTimer(
@@ -385,6 +394,12 @@ void AGameFeelEnemyCharacter::ResetEnemy()
     SetActorLocation(InitialSpawnLocation);
     SetActorEnableCollision(true);
     SetActorHiddenInGame(false);
+
+    StopIdleAnimation();
+    HitScaleHandle.Kill();
+    HitRotHandle.Kill();
+    HitFlashHandle.Kill();
+    DeathSequenceHandle.Kill();
 
     if (VisualRoot)
     {
@@ -416,9 +431,16 @@ void AGameFeelEnemyCharacter::StartIdleAnimation()
 
     if (VisualRoot && !bIsDead)
     {
-        UTween::ComponentRelativeScale(VisualRoot, FVector(1.04f, 1.04f, 0.95f), 0.75f)
+        IdleTweenHandle.Kill();
+        IdleTweenHandle = UTween::ComponentRelativeScale(VisualRoot, FVector(1.04f, 1.04f, 0.95f), 0.75f)
+            .From(FVector::OneVector)
             .SetEase(ETweenEase::InOutSine)
             .SetLoops(-1, ETweenLoopMode::Yoyo)
             .SetTag(FTweenTag(TEXT("EnemyIdle")));
     }
+}
+
+void AGameFeelEnemyCharacter::StopIdleAnimation()
+{
+    IdleTweenHandle.Kill();
 }

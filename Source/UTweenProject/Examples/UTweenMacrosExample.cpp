@@ -45,13 +45,23 @@ void AUTweenMacrosExample::DemoGenericValue()
         .SetDelay(0.25f);
 
     // Lambda form.
+    TWeakObjectPtr<AUTweenMacrosExample> Weak(this);
     UTWEEN(this, FVector::ZeroVector, FVector(0.f, 0.f, 200.f),
-        [this](const FVector& V) { OnOffsetUpdate(V); },
+        [Weak](const FVector& V)
+        {
+            if (AUTweenMacrosExample* Self = Weak.Get())
+            {
+                Self->OnOffsetUpdate(V);
+            }
+        },
         1.f)
         .SetEase(ETweenEase::InOutCubic)
-        .OnComplete([this]
+        .OnComplete([Weak]
             {
-                UE_LOG(LogTemp, Log, TEXT("UTWEEN lambda finished. Final offset: %s"), *CurrentOffset.ToString());
+                if (AUTweenMacrosExample* Self = Weak.Get())
+                {
+                    UE_LOG(LogTemp, Log, TEXT("UTWEEN lambda finished. Final offset: %s"), *Self->CurrentOffset.ToString());
+                }
             });
 }
 

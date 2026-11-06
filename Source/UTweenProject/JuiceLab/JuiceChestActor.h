@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "TweenHandle.h"
+#include "TweenSequence.h"
 #include "JuiceChestActor.generated.h"
 
 class UStaticMeshComponent;
@@ -66,6 +67,7 @@ private:
     TArray<TObjectPtr<UMaterialInstanceDynamic>> LootDynMats;
 
     TArray<FTweenHandle> LootSpinHandles;
+    FTweenSequenceHandle ChestSequenceHandle;
 
     bool bIsAnimating = false;
 };
