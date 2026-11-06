@@ -253,10 +253,11 @@ void UGameFeelHUDWidget::SpawnCombatFeedbackText(float DamageAmount, const FVect
     const int32 RoundedDmg = FMath::RoundToInt(DamageAmount);
     Entry.DamageText = FString::Printf(TEXT("-%d"), RoundedDmg);
 
+    Entry.PrimaryColor = FLinearColor::White;
+
     if (!bIsPolishedHit)
     {
-        Entry.PrimaryColor = FLinearColor(0.85f, 0.85f, 0.88f, 0.90f);
-        Entry.BaseFontSize = 15;
+        Entry.BaseFontSize = 16;
         Entry.Duration = 0.55f;
         Entry.ScreenVelocity = FVector2D(0.0f, -60.0f);
         ActiveFloatingEntries.Add(Entry);
@@ -269,18 +270,15 @@ void UGameFeelHUDWidget::SpawnCombatFeedbackText(float DamageAmount, const FVect
 
     if (ComboStep >= 3)
     {
-        Entry.PrimaryColor = FLinearColor(1.0f, 0.65f, 0.22f, 1.0f);
         Entry.BaseFontSize = 26;
         Entry.Duration = 0.98f;
     }
     else if (ComboStep == 2)
     {
-        Entry.PrimaryColor = FLinearColor(1.0f, 0.88f, 0.36f, 1.0f);
         Entry.BaseFontSize = 23;
     }
     else
     {
-        Entry.PrimaryColor = FLinearColor(1.0f, 0.97f, 0.88f, 1.0f);
         Entry.BaseFontSize = 20;
     }
 
@@ -415,10 +413,10 @@ int32 UGameFeelHUDWidget::NativePaint(
                 : FMath::Clamp(1.0f - ((NormTime - 0.72f) / 0.28f), 0.0f, 1.0f);
 
             const int32 ScaledFontSize = FMath::Clamp(FMath::RoundToInt(Entry.BaseFontSize * Entry.Scale), 10, 56);
-            const FSlateFontInfo DmgFont = FCoreStyle::GetDefaultFontStyle(Entry.bPolished ? "Bold" : "Regular", ScaledFontSize);
+            const FSlateFontInfo DmgFont = FCoreStyle::GetDefaultFontStyle("Bold", ScaledFontSize);
 
-            FLinearColor DmgColor = Entry.PrimaryColor;
-            DmgColor.A *= Alpha;
+            FLinearColor DmgColor = FLinearColor::White;
+            DmgColor.A = Alpha;
 
             DrawOutlinedText(
                 OutDrawElements,
@@ -457,16 +455,13 @@ int32 UGameFeelHUDWidget::NativePaint(
             TEXT("[WASD] Move     [Mouse] Aim     [LMB] Attack"),
             ControlsFont,
             BarCenter - FVector2D(72.0f, 0.0f),
-            FLinearColor(0.78f, 0.80f, 0.86f, 0.85f),
+            FLinearColor(1.0f, 1.0f, 1.0f, 0.92f),
             0.6f,
             true);
 
         const FString StatusText = bPolishEnabled
             ? TEXT("[T] POLISH: ON")
             : TEXT("[T] POLISH: OFF");
-        const FLinearColor StatusColor = bPolishEnabled
-            ? FLinearColor(0.28f, 0.96f, 0.58f, 0.98f)
-            : FLinearColor(0.95f, 0.42f, 0.38f, 0.95f);
 
         DrawOutlinedText(
             OutDrawElements,
@@ -475,7 +470,7 @@ int32 UGameFeelHUDWidget::NativePaint(
             StatusText,
             StatusFont,
             BarCenter + FVector2D(168.0f, 0.0f),
-            StatusColor,
+            FLinearColor(1.0f, 1.0f, 1.0f, 0.98f),
             0.85f,
             true);
     }

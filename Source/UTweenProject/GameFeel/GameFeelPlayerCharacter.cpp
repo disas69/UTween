@@ -67,15 +67,27 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
     }
     if (PlayerMatFinder.Succeeded()) BodyCylinder->SetMaterial(0, PlayerMatFinder.Object);
 
+    SwordPivot = CreateDefaultSubobject<USceneComponent>(TEXT("SwordPivot"));
+    SwordPivot->SetupAttachment(RootComponent);
+    SwordPivot->SetRelativeLocation(FVector(0.f, 0.f, 0.f));
+
+    // Hand sphere attached to SwordPivot at the sword hilt
     TopCapSphere = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TopCapSphere"));
-    TopCapSphere->SetupAttachment(VisualRoot);
-    TopCapSphere->SetRelativeLocation(FVector(0.f, 0.f, 30.f));
-    TopCapSphere->SetRelativeScale3D(FVector(0.001f, 0.001f, 0.001f));
+    TopCapSphere->SetupAttachment(SwordPivot);
+    TopCapSphere->SetRelativeLocation(FVector(42.f, 0.f, 2.f));
+    TopCapSphere->SetRelativeScale3D(FVector(0.22f, 0.22f, 0.22f));
     TopCapSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    TopCapSphere->SetVisibility(false);
-    TopCapSphere->SetHiddenInGame(true);
+    TopCapSphere->SetVisibility(true);
+    TopCapSphere->SetHiddenInGame(false);
     if (SphereFinder.Succeeded()) TopCapSphere->SetStaticMesh(SphereFinder.Object);
-    if (PlayerMatFinder.Succeeded()) TopCapSphere->SetMaterial(0, PlayerMatFinder.Object);
+    if (HandMatFinder.Succeeded())
+    {
+        TopCapSphere->SetMaterial(0, HandMatFinder.Object);
+    }
+    else if (PlayerMatFinder.Succeeded())
+    {
+        TopCapSphere->SetMaterial(0, PlayerMatFinder.Object);
+    }
 
     BottomCapSphere = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BottomCapSphere"));
     BottomCapSphere->SetupAttachment(VisualRoot);
@@ -102,29 +114,22 @@ AGameFeelPlayerCharacter::AGameFeelPlayerCharacter()
     TopDownCamera->bUsePawnControlRotation = false;
     TopDownCamera->FieldOfView = 45.f;
 
-    SwordPivot = CreateDefaultSubobject<USceneComponent>(TEXT("SwordPivot"));
-    SwordPivot->SetupAttachment(RootComponent);
-    SwordPivot->SetRelativeLocation(FVector(0.f, 0.f, 0.f));
-
+    // Player nose attached to VisualRoot facing forward (+X), matching enemies
     NoseMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("NoseMesh"));
-    NoseMesh->SetupAttachment(SwordPivot);
-    NoseMesh->SetRelativeLocation(FVector(36.f, 0.f, 10.f));
-    NoseMesh->SetRelativeScale3D(FVector(0.25f, 0.25f, 0.25f));
+    NoseMesh->SetupAttachment(VisualRoot);
+    NoseMesh->SetRelativeLocation(FVector(29.f, 0.f, 12.f));
+    NoseMesh->SetRelativeScale3D(FVector(0.22f, 0.22f, 0.22f));
     NoseMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     if (SphereFinder.Succeeded()) NoseMesh->SetStaticMesh(SphereFinder.Object);
-    if (HandMatFinder.Succeeded())
-    {
-        NoseMesh->SetMaterial(0, HandMatFinder.Object);
-    }
-    else if (PlayerMatFinder.Succeeded())
+    if (PlayerMatFinder.Succeeded())
     {
         NoseMesh->SetMaterial(0, PlayerMatFinder.Object);
     }
 
     SwordMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SwordMesh"));
     SwordMesh->SetupAttachment(SwordPivot);
-    SwordMesh->SetRelativeLocation(FVector(76.f, 0.f, 10.f));
-    SwordMesh->SetRelativeScale3D(FVector(0.74f, 0.42f, 0.08f));
+    SwordMesh->SetRelativeLocation(FVector(82.f, 0.f, 2.f));
+    SwordMesh->SetRelativeScale3D(FVector(0.72f, 0.40f, 0.08f));
     SwordMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     if (SwordMeshFinder.Succeeded())
     {
@@ -166,12 +171,51 @@ void AGameFeelPlayerCharacter::BeginPlay()
 {
     Super::BeginPlay();
 
-    bIsUsingGamepadAim = true;
+    bIsUsingGamepadAim = false;
     LastMousePosition = FVector2D::ZeroVector;
     CurrentRestAngle = RestStanceAngle;
     if (SwordPivot)
     {
         SwordPivot->SetRelativeRotation(FRotator(0.f, CurrentRestAngle, 0.f));
+    }
+
+    UMaterialInterface* PlayerMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/GameFeel/Materials/MI_GameFeel_Player.MI_GameFeel_Player"));
+    UMaterialInterface* HandMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/GameFeel/Materials/MI_GameFeel_PlayerHand.MI_GameFeel_PlayerHand"));
+
+    if (NoseMesh && VisualRoot)
+    {
+        NoseMesh->AttachToComponent(VisualRoot, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+        NoseMesh->SetRelativeLocation(FVector(29.f, 0.f, 12.f));
+        NoseMesh->SetRelativeScale3D(FVector(0.22f, 0.22f, 0.22f));
+        NoseMesh->SetVisibility(true);
+        NoseMesh->SetHiddenInGame(false);
+        if (PlayerMat)
+        {
+            NoseMesh->SetMaterial(0, PlayerMat);
+        }
+    }
+
+    if (TopCapSphere && SwordPivot)
+    {
+        TopCapSphere->AttachToComponent(SwordPivot, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+        TopCapSphere->SetRelativeLocation(FVector(42.f, 0.f, 2.f));
+        TopCapSphere->SetRelativeScale3D(FVector(0.22f, 0.22f, 0.22f));
+        TopCapSphere->SetVisibility(true);
+        TopCapSphere->SetHiddenInGame(false);
+        if (HandMat)
+        {
+            TopCapSphere->SetMaterial(0, HandMat);
+        }
+        else if (PlayerMat)
+        {
+            TopCapSphere->SetMaterial(0, PlayerMat);
+        }
+    }
+
+    if (SwordMesh)
+    {
+        SwordMesh->SetRelativeLocation(FVector(82.f, 0.f, 2.f));
+        SwordMesh->SetRelativeScale3D(FVector(0.72f, 0.40f, 0.08f));
     }
 
     if (SlashArcClass && GetWorld())
@@ -313,22 +357,13 @@ void AGameFeelPlayerCharacter::EnhancedMove(const FInputActionValue& Value)
     {
         AddMovementInput(FVector::ForwardVector, MoveVec.Y);
         AddMovementInput(FVector::RightVector, MoveVec.X);
-
-        if (!bIsUsingGamepadAim)
-        {
-            const FVector MoveDir = FVector(MoveVec.Y, MoveVec.X, 0.f).GetSafeNormal();
-            if (!MoveDir.IsNearlyZero())
-            {
-                SetActorRotation(FRotator(0.f, MoveDir.Rotation().Yaw, 0.f));
-            }
-        }
     }
 }
 
 void AGameFeelPlayerCharacter::EnhancedAim(const FInputActionValue& Value)
 {
     const FVector2D AimVec = Value.Get<FVector2D>();
-    if (AimVec.SizeSquared() > 0.04f)
+    if (AimVec.SizeSquared() > 0.08f)
     {
         bIsUsingGamepadAim = true;
         const FVector AimDir = FVector(AimVec.Y, AimVec.X, 0.f).GetSafeNormal();
@@ -352,11 +387,6 @@ void AGameFeelPlayerCharacter::AimAtCursor()
         return;
     }
 
-    if (GetWorld() && GetWorld()->GetTimeSeconds() < 0.6f)
-    {
-        return;
-    }
-
     float MouseX, MouseY;
     if (PC->GetMousePosition(MouseX, MouseY))
     {
@@ -365,7 +395,7 @@ void AGameFeelPlayerCharacter::AimAtCursor()
         {
             LastMousePosition = CurrentMousePos;
         }
-        else if ((CurrentMousePos - LastMousePosition).SizeSquared() > 4.0f)
+        else if ((CurrentMousePos - LastMousePosition).SizeSquared() > 1.5f)
         {
             bIsUsingGamepadAim = false;
             LastMousePosition = CurrentMousePos;
@@ -375,6 +405,25 @@ void AGameFeelPlayerCharacter::AimAtCursor()
     if (bIsUsingGamepadAim)
     {
         return;
+    }
+
+    FVector WorldOrigin = FVector::ZeroVector;
+    FVector WorldDirection = FVector::ZeroVector;
+    if (PC->DeprojectMousePositionToWorld(WorldOrigin, WorldDirection))
+    {
+        const FVector ActorLoc = GetActorLocation();
+        const FPlane AimPlane(ActorLoc, FVector::UpVector);
+        const FVector RayEnd = WorldOrigin + (WorldDirection * 25000.f);
+        if (!FMath::IsNearlyZero(WorldDirection.Z))
+        {
+            const FVector TargetLocation = FMath::LinePlaneIntersection(WorldOrigin, RayEnd, AimPlane);
+            const FVector Direction = FVector(TargetLocation.X - ActorLoc.X, TargetLocation.Y - ActorLoc.Y, 0.f).GetSafeNormal();
+            if (!Direction.IsNearlyZero())
+            {
+                SetActorRotation(FRotator(0.f, Direction.Rotation().Yaw, 0.f));
+                return;
+            }
+        }
     }
 
     FHitResult HitResult;
@@ -755,6 +804,14 @@ void AGameFeelPlayerCharacter::TriggerComboFinishFlourish()
 
 void AGameFeelPlayerCharacter::TogglePolishMode()
 {
+    static double LastPolishToggleTime = -10.0;
+    const double Now = FPlatformTime::Seconds();
+    if (Now - LastPolishToggleTime < 0.25)
+    {
+        return;
+    }
+    LastPolishToggleTime = Now;
+
     SetPolishMode(!bIsPolished);
 }
 
@@ -794,10 +851,12 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
             BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, -16.f));
             BodyCylinder->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
         }
-        if (NoseMesh)
+        if (TopCapSphere)
         {
-            NoseMesh->SetVisibility(true);
-            NoseMesh->SetHiddenInGame(false);
+            TopCapSphere->SetRelativeLocation(FVector(42.f, 0.f, 2.f));
+            TopCapSphere->SetRelativeScale3D(FVector(0.22f, 0.22f, 0.22f));
+            TopCapSphere->SetVisibility(true);
+            TopCapSphere->SetHiddenInGame(false);
         }
         if (SwordMesh)
         {
@@ -805,8 +864,8 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
             {
                 SwordMesh->SetStaticMesh(BroadSwordMesh);
             }
-            SwordMesh->SetRelativeLocation(FVector(76.f, 0.f, 10.f));
-            SwordMesh->SetRelativeScale3D(FVector(0.74f, 0.42f, 0.08f));
+            SwordMesh->SetRelativeLocation(FVector(82.f, 0.f, 2.f));
+            SwordMesh->SetRelativeScale3D(FVector(0.72f, 0.40f, 0.08f));
             if (UMaterialInstanceDynamic* SwordMID = SwordMesh->CreateAndSetMaterialInstanceDynamic(0))
             {
                 SwordMID->SetVectorParameterValue(FName("BaseColor"), FLinearColor(1.0f, 0.62f, 0.12f, 1.0f));
@@ -818,7 +877,7 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
     {
         CurrentCombo = 0;
         CameraTrauma = 0.f;
-        DefaultBoomLength = 1520.f;
+        DefaultBoomLength = 1350.f;
 
         if (UTweenSubsystem* TweenSys = UTweenSubsystem::Get(this))
         {
@@ -834,23 +893,34 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
         }
         if (TopDownCamera)
         {
-            TopDownCamera->FieldOfView = 45.f;
+            TopDownCamera->FieldOfView = 52.f;
             TopDownCamera->SetRelativeLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
         }
         if (CameraBoom)
         {
             CameraBoom->SocketOffset = FVector::ZeroVector;
             CameraBoom->TargetArmLength = DefaultBoomLength;
-            CameraBoom->SetRelativeRotation(FRotator(-48.f, 0.f, 0.f));
+            CameraBoom->SetRelativeRotation(FRotator(-52.f, 0.f, 0.f));
+        }
+        if (BodyCylinder && CylinderMesh)
+        {
+            BodyCylinder->SetStaticMesh(CylinderMesh);
+            BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, -10.f));
+            BodyCylinder->SetRelativeScale3D(FVector(0.68f, 0.68f, 0.62f));
+        }
+        if (TopCapSphere)
+        {
+            TopCapSphere->SetVisibility(false);
+            TopCapSphere->SetHiddenInGame(true);
         }
         if (SwordMesh)
         {
-            if (BroadSwordMesh)
+            if (CubeMesh)
             {
-                SwordMesh->SetStaticMesh(BroadSwordMesh);
+                SwordMesh->SetStaticMesh(CubeMesh);
             }
-            SwordMesh->SetRelativeLocation(FVector(72.f, 0.f, 10.f));
-            SwordMesh->SetRelativeScale3D(FVector(0.74f, 0.25f, 0.06f));
+            SwordMesh->SetRelativeLocation(FVector(66.f, 0.f, 2.f));
+            SwordMesh->SetRelativeScale3D(FVector(0.70f, 0.16f, 0.05f));
             if (UMaterialInstanceDynamic* SwordMID = SwordMesh->CreateAndSetMaterialInstanceDynamic(0))
             {
                 SwordMID->SetVectorParameterValue(FName("BaseColor"), FLinearColor(0.90f, 0.90f, 0.94f, 1.0f));
@@ -878,6 +948,21 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
                     Enemy->VisualRoot->SetRelativeLocation(FVector::ZeroVector);
                     Enemy->VisualRoot->SetRelativeRotation(FRotator::ZeroRotator);
                     Enemy->VisualRoot->SetRelativeScale3D(FVector::OneVector);
+                }
+                if (Enemy->BodyCylinder)
+                {
+                    if (bIsPolished && CapsuleMesh)
+                    {
+                        Enemy->BodyCylinder->SetStaticMesh(CapsuleMesh);
+                        Enemy->BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, -16.f));
+                        Enemy->BodyCylinder->SetRelativeScale3D(FVector(0.92f, 0.92f, 0.92f));
+                    }
+                    else if (!bIsPolished && CylinderMesh)
+                    {
+                        Enemy->BodyCylinder->SetStaticMesh(CylinderMesh);
+                        Enemy->BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, -10.f));
+                        Enemy->BodyCylinder->SetRelativeScale3D(FVector(0.64f, 0.64f, 0.58f));
+                    }
                 }
                 if (bIsPolished)
                 {
