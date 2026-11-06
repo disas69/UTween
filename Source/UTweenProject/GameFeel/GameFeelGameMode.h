@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
@@ -23,7 +23,7 @@ public:
     int32 EnemyCount = 5;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Spawning")
-    float RingRadius = 260.f;
+    float RingRadius = 195.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Spawning")
     TSubclassOf<AGameFeelEnemyCharacter> EnemyClass;

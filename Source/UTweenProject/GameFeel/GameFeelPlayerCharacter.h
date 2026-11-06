@@ -103,7 +103,7 @@ public:
     TObjectPtr<UInputAction> TogglePolishAction;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Camera")
-    float DefaultBoomLength = 850.f;
+    float DefaultBoomLength = 1520.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Camera")
     float TraumaDecaySpeed = 3.2f;
@@ -136,10 +136,10 @@ public:
     float AttackDuration = 0.20f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Combat")
-    float AttackRange = 180.f;
+    float AttackRange = 210.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Combat")
-    float RestStanceAngle = 85.f;
+    float RestStanceAngle = 102.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameFeel|Polish")
     bool bIsPolished = true;
@@ -173,6 +173,7 @@ private:
 
     int32 CurrentCombo = 0;
     float ComboTimer = 0.f;
+    float LocomotionTimer = 0.f;
 
     UPROPERTY(Transient)
     TObjectPtr<AGameFeelSlashArc> SlashArcInstance;

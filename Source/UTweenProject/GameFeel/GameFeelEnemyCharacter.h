@@ -76,6 +76,7 @@ protected:
 private:
     void FollowPlayer(float DeltaTime);
     void Die();
+    void StartIdleAnimation();
 
     FVector InitialSpawnLocation = FVector::ZeroVector;
     bool bIsDead = false;

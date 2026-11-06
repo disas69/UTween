@@ -38,12 +38,19 @@ void AGameFeelPlayerController::BeginPlay()
         }
     }
 
+    if (!HUDWidgetClass)
+    {
+        HUDWidgetClass = UGameFeelHUDWidget::StaticClass();
+    }
+
     if (HUDWidgetClass && IsLocalController())
     {
         HUDWidgetInstance = CreateWidget<UGameFeelHUDWidget>(this, HUDWidgetClass);
         if (HUDWidgetInstance)
         {
             HUDWidgetInstance->AddToViewport(10);
+            HUDWidgetInstance->SetPolishStatus(true);
+            HUDWidgetInstance->SetCombo(0);
             HUDWidgetInstance->OnPolishStatusChanged(true);
             HUDWidgetInstance->OnComboUpdated(0);
         }
@@ -54,6 +61,7 @@ void AGameFeelPlayerController::NotifyPolishChanged(bool bEnabled)
 {
     if (HUDWidgetInstance)
     {
+        HUDWidgetInstance->SetPolishStatus(bEnabled);
         HUDWidgetInstance->OnPolishStatusChanged(bEnabled);
     }
 }
@@ -62,6 +70,7 @@ void AGameFeelPlayerController::NotifyComboChanged(int32 Combo)
 {
     if (HUDWidgetInstance)
     {
+        HUDWidgetInstance->SetCombo(Combo);
         HUDWidgetInstance->OnComboUpdated(Combo);
     }
 }
