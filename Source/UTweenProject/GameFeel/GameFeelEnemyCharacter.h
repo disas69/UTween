@@ -25,6 +25,8 @@ public:
     UFUNCTION(BlueprintCallable, Category = "GameFeel|Enemy")
     void ResetEnemy();
 
+    void StartIdleAnimation();
+
     UFUNCTION(BlueprintPure, Category = "GameFeel|Enemy")
     float GetHealthPercent() const { return MaxHealth > 0.f ? CurrentHealth / MaxHealth : 0.f; }
 
@@ -76,7 +78,6 @@ protected:
 private:
     void FollowPlayer(float DeltaTime);
     void Die();
-    void StartIdleAnimation();
 
     FVector InitialSpawnLocation = FVector::ZeroVector;
     bool bIsDead = false;

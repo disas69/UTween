@@ -6,6 +6,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/OverlapResult.h"
+#include "Engine/PostProcessVolume.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EnhancedInputComponent.h"
@@ -14,8 +15,10 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "InputAction.h"
+#include "InputCoreTypes.h"
 #include "InputMappingContext.h"
 #include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -295,6 +298,11 @@ void AGameFeelPlayerCharacter::SetupPlayerInputComponent(UInputComponent* Player
         {
             EnhancedInputComp->BindAction(TogglePolishAction, ETriggerEvent::Started, this, &AGameFeelPlayerCharacter::TogglePolishMode);
         }
+    }
+
+    if (PlayerInputComponent)
+    {
+        PlayerInputComponent->BindKey(EKeys::T, IE_Pressed, this, &AGameFeelPlayerCharacter::TogglePolishMode);
     }
 }
 
@@ -668,12 +676,13 @@ void AGameFeelPlayerCharacter::DetectAttackHits()
                 HitActorsThisSwing.Add(Enemy);
                 const FVector HitDir = (Enemy->GetActorLocation() - GetActorLocation()).GetSafeNormal();
 
-                Enemy->TakeHit(AttackDamage, HitDir, bIsPolished);
-
                 if (bIsPolished)
                 {
                     CurrentCombo++;
                     ComboTimer = 0.f;
+                    const float StepDamage = (CurrentCombo >= 3) ? 50.f : ((CurrentCombo == 2) ? 35.f : AttackDamage);
+                    Enemy->TakeHit(StepDamage, HitDir, true);
+
                     if (AGameFeelPlayerController* PC = Cast<AGameFeelPlayerController>(GetController()))
                     {
                         PC->NotifyComboChanged(CurrentCombo);
@@ -690,6 +699,10 @@ void AGameFeelPlayerCharacter::DetectAttackHits()
                         AddCameraTrauma(0.35f);
                         TriggerCameraPunchZoom(DefaultBoomLength - 70.f, 0.05f, 0.20f);
                     }
+                }
+                else
+                {
+                    Enemy->TakeHit(AttackDamage, HitDir, false);
                 }
             }
         }
@@ -752,20 +765,138 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
     if (AGameFeelPlayerController* PC = Cast<AGameFeelPlayerController>(GetController()))
     {
         PC->NotifyPolishChanged(bIsPolished);
+        if (!bIsPolished)
+        {
+            PC->NotifyComboChanged(0);
+        }
     }
 
-    if (!bIsPolished)
+    UStaticMesh* CapsuleMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/GameFeel/Meshes/SM_GameFeel_Capsule.SM_GameFeel_Capsule"));
+    UStaticMesh* CylinderMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+    UStaticMesh* BroadSwordMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/GameFeel/Meshes/SM_GameFeel_BroadSword.SM_GameFeel_BroadSword"));
+    UStaticMesh* CubeMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+
+    if (bIsPolished)
+    {
+        DefaultBoomLength = 1520.f;
+        if (TopDownCamera)
+        {
+            TopDownCamera->FieldOfView = 45.f;
+        }
+        if (CameraBoom)
+        {
+            CameraBoom->TargetArmLength = DefaultBoomLength;
+            CameraBoom->SetRelativeRotation(FRotator(-48.f, 0.f, 0.f));
+        }
+        if (BodyCylinder && CapsuleMesh)
+        {
+            BodyCylinder->SetStaticMesh(CapsuleMesh);
+            BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, -16.f));
+            BodyCylinder->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
+        }
+        if (NoseMesh)
+        {
+            NoseMesh->SetVisibility(true);
+            NoseMesh->SetHiddenInGame(false);
+        }
+        if (SwordMesh)
+        {
+            if (BroadSwordMesh)
+            {
+                SwordMesh->SetStaticMesh(BroadSwordMesh);
+            }
+            SwordMesh->SetRelativeLocation(FVector(76.f, 0.f, 10.f));
+            SwordMesh->SetRelativeScale3D(FVector(0.74f, 0.42f, 0.08f));
+            if (UMaterialInstanceDynamic* SwordMID = SwordMesh->CreateAndSetMaterialInstanceDynamic(0))
+            {
+                SwordMID->SetVectorParameterValue(FName("BaseColor"), FLinearColor(1.0f, 0.62f, 0.12f, 1.0f));
+                SwordMID->SetVectorParameterValue(FName("EmissiveColor"), FLinearColor(5.0f, 2.3f, 0.35f, 1.0f));
+            }
+        }
+    }
+    else
     {
         CurrentCombo = 0;
         CameraTrauma = 0.f;
+        DefaultBoomLength = 1520.f;
+
+        if (UTweenSubsystem* TweenSys = UTweenSubsystem::Get(this))
+        {
+            TweenSys->KillByTag(FTweenTag(TEXT("PlayerAttack")));
+            TweenSys->KillByTag(FTweenTag(TEXT("EnemyIdle")));
+        }
+
+        if (VisualRoot)
+        {
+            VisualRoot->SetRelativeLocation(FVector::ZeroVector);
+            VisualRoot->SetRelativeRotation(FRotator::ZeroRotator);
+            VisualRoot->SetRelativeScale3D(FVector::OneVector);
+        }
         if (TopDownCamera)
         {
+            TopDownCamera->FieldOfView = 45.f;
             TopDownCamera->SetRelativeLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
         }
         if (CameraBoom)
         {
             CameraBoom->SocketOffset = FVector::ZeroVector;
             CameraBoom->TargetArmLength = DefaultBoomLength;
+            CameraBoom->SetRelativeRotation(FRotator(-48.f, 0.f, 0.f));
+        }
+        if (SwordMesh)
+        {
+            if (BroadSwordMesh)
+            {
+                SwordMesh->SetStaticMesh(BroadSwordMesh);
+            }
+            SwordMesh->SetRelativeLocation(FVector(72.f, 0.f, 10.f));
+            SwordMesh->SetRelativeScale3D(FVector(0.74f, 0.25f, 0.06f));
+            if (UMaterialInstanceDynamic* SwordMID = SwordMesh->CreateAndSetMaterialInstanceDynamic(0))
+            {
+                SwordMID->SetVectorParameterValue(FName("BaseColor"), FLinearColor(0.90f, 0.90f, 0.94f, 1.0f));
+                SwordMID->SetVectorParameterValue(FName("EmissiveColor"), FLinearColor(0.0f, 0.0f, 0.0f, 1.0f));
+            }
+        }
+        if (SlashArcInstance && SlashArcInstance->ArcMesh)
+        {
+            SlashArcInstance->ArcMesh->SetVisibility(false);
+        }
+    }
+
+    if (UWorld* World = GetWorld())
+    {
+        UGameplayStatics::SetGlobalTimeDilation(World, 1.0f);
+
+        TArray<AActor*> AllEnemies;
+        UGameplayStatics::GetAllActorsOfClass(World, AGameFeelEnemyCharacter::StaticClass(), AllEnemies);
+        for (AActor* Actor : AllEnemies)
+        {
+            if (AGameFeelEnemyCharacter* Enemy = Cast<AGameFeelEnemyCharacter>(Actor))
+            {
+                if (Enemy->VisualRoot)
+                {
+                    Enemy->VisualRoot->SetRelativeLocation(FVector::ZeroVector);
+                    Enemy->VisualRoot->SetRelativeRotation(FRotator::ZeroRotator);
+                    Enemy->VisualRoot->SetRelativeScale3D(FVector::OneVector);
+                }
+                if (bIsPolished)
+                {
+                    Enemy->StartIdleAnimation();
+                }
+            }
+        }
+
+        TArray<AActor*> PostProcessActors;
+        UGameplayStatics::GetAllActorsOfClass(World, APostProcessVolume::StaticClass(), PostProcessActors);
+        for (AActor* PPActor : PostProcessActors)
+        {
+            if (APostProcessVolume* PPV = Cast<APostProcessVolume>(PPActor))
+            {
+                PPV->Settings.bOverride_BloomIntensity = true;
+                PPV->Settings.BloomIntensity = bIsPolished ? 0.95f : 0.15f;
+                PPV->Settings.bOverride_VignetteIntensity = true;
+                PPV->Settings.VignetteIntensity = bIsPolished ? 0.52f : 0.0f;
+            }
         }
     }
 }

@@ -29,6 +29,8 @@ public:
     UFUNCTION(BlueprintCallable, Category = "GameFeel|UI")
     void SetCombo(int32 NewCombo);
 
+    void SpawnCombatFeedbackText(float DamageAmount, const FVector& WorldLocation, int32 ComboStep, bool bIsPolishedHit);
+
     UFUNCTION(BlueprintImplementableEvent, Category = "GameFeel|UI")
     void OnPolishStatusChanged(bool bEnabled);
 

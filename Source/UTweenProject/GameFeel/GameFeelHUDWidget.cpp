@@ -1,9 +1,100 @@
 #include "GameFeelHUDWidget.h"
 
+#include "Brushes/SlateColorBrush.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/World.h"
+#include "Fonts/FontMeasure.h"
 #include "Fonts/SlateFontInfo.h"
+#include "Framework/Application/SlateApplication.h"
+#include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
 #include "Rendering/DrawElements.h"
 #include "Styling/CoreStyle.h"
+
+#include "GameFeelEnemyCharacter.h"
 #include "UTween.h"
+
+namespace
+{
+    struct FFloatingCombatEntry
+    {
+        FVector WorldOrigin = FVector::ZeroVector;
+        FVector2D ScreenOffset = FVector2D::ZeroVector;
+        FVector2D ScreenVelocity = FVector2D::ZeroVector;
+        FString DamageText;
+        FLinearColor PrimaryColor = FLinearColor::White;
+        float Elapsed = 0.0f;
+        float Duration = 0.85f;
+        float Scale = 1.0f;
+        int32 BaseFontSize = 22;
+        bool bPolished = true;
+    };
+
+    struct FEnemyLifeBarState
+    {
+        FVector LastWorldLocation = FVector::ZeroVector;
+        float LastKnownHealthPercent = 1.0f;
+        float DisplayedPercent = 1.0f;
+        float TrailingPercent = 1.0f;
+        float TrailingDelayTimer = 0.0f;
+        float Alpha = 0.0f;
+        float Scale = 1.0f;
+        float ShakeTimer = 0.0f;
+        float DeathHoldTimer = 0.0f;
+    };
+
+    TArray<FFloatingCombatEntry> ActiveFloatingEntries;
+    TMap<TWeakObjectPtr<AGameFeelEnemyCharacter>, FEnemyLifeBarState> EnemyLifeBars;
+
+    void DrawOutlinedText(
+        FSlateWindowElementList& OutDrawElements,
+        int32& LayerId,
+        const FGeometry& AllottedGeometry,
+        const FString& Text,
+        const FSlateFontInfo& Font,
+        const FVector2D& CenterPos,
+        const FLinearColor& FillColor,
+        float OutlineAlpha,
+        bool bDrawOutline)
+    {
+        FSlateFontInfo StyledFont = Font;
+        if (bDrawOutline && OutlineAlpha > 0.01f)
+        {
+            StyledFont.OutlineSettings.OutlineSize = 2;
+            StyledFont.OutlineSettings.OutlineColor = FLinearColor(0.01f, 0.01f, 0.03f, OutlineAlpha * 0.96f);
+        }
+
+        FVector2D TextSize(Text.Len() * StyledFont.Size * 0.58f, StyledFont.Size * 1.2f);
+        if (FSlateApplication::IsInitialized() && FSlateApplication::Get().GetRenderer())
+        {
+            TextSize = FSlateApplication::Get().GetRenderer()->GetFontMeasureService()->Measure(Text, StyledFont);
+        }
+
+        const FVector2D TopLeft = CenterPos - (TextSize * 0.5f);
+
+        if (bDrawOutline && OutlineAlpha > 0.01f)
+        {
+            const FLinearColor ShadowColor(0.01f, 0.01f, 0.02f, OutlineAlpha * 0.75f);
+            FSlateDrawElement::MakeText(
+                OutDrawElements,
+                LayerId++,
+                AllottedGeometry.ToPaintGeometry(FSlateLayoutTransform(TopLeft + FVector2D(0.0f, 2.0f))),
+                FText::FromString(Text),
+                StyledFont,
+                ESlateDrawEffect::None,
+                ShadowColor);
+        }
+
+        FSlateDrawElement::MakeText(
+            OutDrawElements,
+            LayerId++,
+            AllottedGeometry.ToPaintGeometry(FSlateLayoutTransform(TopLeft)),
+            FText::FromString(Text),
+            StyledFont,
+            ESlateDrawEffect::None,
+            FillColor);
+    }
+}
 
 UGameFeelHUDWidget::UGameFeelHUDWidget(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
@@ -14,49 +105,186 @@ UGameFeelHUDWidget::UGameFeelHUDWidget(const FObjectInitializer& ObjectInitializ
 void UGameFeelHUDWidget::NativeConstruct()
 {
     Super::NativeConstruct();
+    ActiveFloatingEntries.Empty();
+    EnemyLifeBars.Empty();
 }
 
 void UGameFeelHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
 
-    if (CurrentCombo > 0)
+    if (UWorld* World = GetWorld())
     {
-        ComboFadeTimer += InDeltaTime;
-        if (ComboFadeTimer > 1.25f)
+        TArray<AActor*> FoundEnemies;
+        UGameplayStatics::GetAllActorsOfClass(World, AGameFeelEnemyCharacter::StaticClass(), FoundEnemies);
+        for (AActor* Actor : FoundEnemies)
         {
-            ComboAlpha = FMath::FInterpTo(ComboAlpha, 0.0f, InDeltaTime, 5.0f);
+            if (AGameFeelEnemyCharacter* Enemy = Cast<AGameFeelEnemyCharacter>(Actor))
+            {
+                FEnemyLifeBarState& State = EnemyLifeBars.FindOrAdd(Enemy);
+                if (!Enemy->IsHidden())
+                {
+                    State.LastWorldLocation = Enemy->GetActorLocation();
+                }
+
+                const float TargetPct = FMath::Clamp(Enemy->GetHealthPercent(), 0.0f, 1.0f);
+
+                // Respawn reset detection
+                if (TargetPct > State.LastKnownHealthPercent + 0.1f)
+                {
+                    State.LastKnownHealthPercent = TargetPct;
+                    State.DisplayedPercent = TargetPct;
+                    State.TrailingPercent = TargetPct;
+                    State.TrailingDelayTimer = 0.0f;
+                    State.Alpha = 0.0f;
+                    State.Scale = 1.0f;
+                    State.ShakeTimer = 0.0f;
+                    State.DeathHoldTimer = 0.0f;
+                    continue;
+                }
+
+                // New damage taken detection
+                if (TargetPct < State.LastKnownHealthPercent - 0.001f)
+                {
+                    State.LastKnownHealthPercent = TargetPct;
+                    State.Alpha = 1.0f;
+                    State.Scale = 1.32f;
+                    State.ShakeTimer = 0.16f;
+                    State.TrailingDelayTimer = 0.14f;
+                    if (TargetPct <= 0.001f)
+                    {
+                        State.DeathHoldTimer = 0.36f;
+                    }
+                }
+
+                State.DisplayedPercent = FMath::FInterpTo(State.DisplayedPercent, TargetPct, InDeltaTime, 24.0f);
+                State.Scale = FMath::FInterpTo(State.Scale, 1.0f, InDeltaTime, 14.0f);
+                State.ShakeTimer = FMath::Max(0.0f, State.ShakeTimer - InDeltaTime);
+
+                if (State.TrailingDelayTimer > 0.0f)
+                {
+                    State.TrailingDelayTimer -= InDeltaTime;
+                }
+                else
+                {
+                    State.TrailingPercent = FMath::FInterpTo(State.TrailingPercent, TargetPct, InDeltaTime, 6.5f);
+                }
+
+                if (TargetPct <= 0.001f || Enemy->IsHidden())
+                {
+                    if (State.DeathHoldTimer > 0.0f)
+                    {
+                        State.DeathHoldTimer -= InDeltaTime;
+                    }
+                    else
+                    {
+                        State.Alpha = FMath::FInterpTo(State.Alpha, 0.0f, InDeltaTime, 9.0f);
+                    }
+                }
+                else if (TargetPct < 0.999f)
+                {
+                    State.Alpha = 1.0f;
+                }
+            }
         }
     }
-    else
+
+    for (int32 i = ActiveFloatingEntries.Num() - 1; i >= 0; --i)
     {
-        ComboAlpha = FMath::FInterpTo(ComboAlpha, 0.0f, InDeltaTime, 8.0f);
+        FFloatingCombatEntry& Entry = ActiveFloatingEntries[i];
+        Entry.Elapsed += InDeltaTime;
+        if (Entry.Elapsed >= Entry.Duration)
+        {
+            ActiveFloatingEntries.RemoveAt(i);
+            continue;
+        }
+
+        Entry.ScreenOffset += Entry.ScreenVelocity * InDeltaTime;
+        if (Entry.bPolished)
+        {
+            Entry.ScreenVelocity.Y += 230.0f * InDeltaTime;
+            Entry.ScreenVelocity.X *= FMath::Max(0.0f, 1.0f - InDeltaTime * 3.5f);
+
+            const float NormTime = Entry.Elapsed / Entry.Duration;
+            if (NormTime < 0.14f)
+            {
+                const float PopT = NormTime / 0.14f;
+                Entry.Scale = FMath::Lerp(0.40f, 1.36f, FMath::Sin(PopT * PI * 0.5f));
+            }
+            else if (NormTime < 0.30f)
+            {
+                const float SettleT = (NormTime - 0.14f) / 0.16f;
+                Entry.Scale = FMath::Lerp(1.36f, 1.0f, SettleT);
+            }
+            else
+            {
+                Entry.Scale = 1.0f;
+            }
+        }
+        else
+        {
+            Entry.Scale = 1.0f;
+        }
     }
 }
 
 void UGameFeelHUDWidget::SetPolishStatus(bool bEnabled)
 {
     bPolishEnabled = bEnabled;
-    PolishBadgePulse = 1.35f;
-    UTween::Value(this, 1.35f, 1.0f, 0.22f, [this](float Pulse) {
+    PolishBadgePulse = 1.32f;
+    UTween::Value(this, 1.32f, 1.0f, 0.24f, [this](float Pulse) {
         PolishBadgePulse = Pulse;
     })
+    .SetTimeMode(ETweenTimeMode::RealTime)
     .SetEase(ETweenEase::OutBack);
 }
 
 void UGameFeelHUDWidget::SetCombo(int32 NewCombo)
 {
     CurrentCombo = NewCombo;
-    if (CurrentCombo > 0)
+}
+
+void UGameFeelHUDWidget::SpawnCombatFeedbackText(float DamageAmount, const FVector& WorldLocation, int32 ComboStep, bool bIsPolishedHit)
+{
+    FFloatingCombatEntry Entry;
+    Entry.WorldOrigin = WorldLocation + FVector(0.0f, 0.0f, 95.0f);
+    Entry.bPolished = bIsPolishedHit;
+
+    const int32 RoundedDmg = FMath::RoundToInt(DamageAmount);
+    Entry.DamageText = FString::Printf(TEXT("-%d"), RoundedDmg);
+
+    if (!bIsPolishedHit)
     {
-        ComboAlpha = 1.0f;
-        ComboFadeTimer = 0.0f;
-        ComboDisplayScale = 1.70f;
-        UTween::Value(this, 1.70f, 1.0f, 0.16f, [this](float Scale) {
-            ComboDisplayScale = Scale;
-        })
-        .SetEase(ETweenEase::OutBack);
+        Entry.PrimaryColor = FLinearColor(0.85f, 0.85f, 0.88f, 0.90f);
+        Entry.BaseFontSize = 15;
+        Entry.Duration = 0.55f;
+        Entry.ScreenVelocity = FVector2D(0.0f, -60.0f);
+        ActiveFloatingEntries.Add(Entry);
+        return;
     }
+
+    const float RandDirX = FMath::RandBool() ? FMath::RandRange(22.0f, 52.0f) : FMath::RandRange(-52.0f, -22.0f);
+    Entry.ScreenVelocity = FVector2D(RandDirX, FMath::RandRange(-135.0f, -110.0f));
+    Entry.Duration = 0.88f;
+
+    if (ComboStep >= 3)
+    {
+        Entry.PrimaryColor = FLinearColor(1.0f, 0.65f, 0.22f, 1.0f);
+        Entry.BaseFontSize = 26;
+        Entry.Duration = 0.98f;
+    }
+    else if (ComboStep == 2)
+    {
+        Entry.PrimaryColor = FLinearColor(1.0f, 0.88f, 0.36f, 1.0f);
+        Entry.BaseFontSize = 23;
+    }
+    else
+    {
+        Entry.PrimaryColor = FLinearColor(1.0f, 0.97f, 0.88f, 1.0f);
+        Entry.BaseFontSize = 20;
+    }
+
+    ActiveFloatingEntries.Add(Entry);
 }
 
 int32 UGameFeelHUDWidget::NativePaint(
@@ -76,76 +304,180 @@ int32 UGameFeelHUDWidget::NativePaint(
         return LayerId;
     }
 
-    const FSlateBrush* DefaultBrush = FCoreStyle::Get().GetDefaultBrush();
-    const FSlateFontInfo HeadlineFont = FCoreStyle::GetDefaultFontStyle("Bold", FMath::RoundToInt(42.0f * PolishBadgePulse));
-    const FSlateFontInfo ComboFont = FCoreStyle::GetDefaultFontStyle("Bold", FMath::RoundToInt(22.0f * ComboDisplayScale));
-    const FSlateFontInfo LegendFont = FCoreStyle::GetDefaultFontStyle("Regular", 11);
+    static const FSlateColorBrush SolidWhiteBrush(FLinearColor::White);
+    const FSlateBrush* DefaultBrush = &SolidWhiteBrush;
+    APlayerController* PC = GetOwningPlayer();
 
-    // 1. Top-Center Reference Headline ("+ ATTACK FEEDBACK")
+    int32 ViewSizeX = FMath::RoundToInt(ViewportSize.X);
+    int32 ViewSizeY = FMath::RoundToInt(ViewportSize.Y);
+    if (PC)
     {
-        const FString HeadlineText = bPolishEnabled
-            ? TEXT("+ ATTACK FEEDBACK")
-            : TEXT("- NO ATTACK FEEDBACK");
+        PC->GetViewportSize(ViewSizeX, ViewSizeY);
+    }
+    const float InvScaleX = (ViewSizeX > 0) ? (ViewportSize.X / static_cast<float>(ViewSizeX)) : 1.0f;
+    const float InvScaleY = (ViewSizeY > 0) ? (ViewportSize.Y / static_cast<float>(ViewSizeY)) : 1.0f;
 
-        const FLinearColor HeadlineColor = bPolishEnabled
-            ? FLinearColor(0.98f, 0.98f, 0.99f, 0.98f)
-            : FLinearColor(0.55f, 0.55f, 0.60f, 0.85f);
+    // 1. Animated Enemy Life Bars (Polished Mode Only — matches reference video)
+    if (bPolishEnabled && PC)
+    {
+        for (const auto& Pair : EnemyLifeBars)
+        {
+            const TWeakObjectPtr<AGameFeelEnemyCharacter>& WeakEnemy = Pair.Key;
+            const FEnemyLifeBarState& State = Pair.Value;
+            if (!WeakEnemy.IsValid() || State.Alpha <= 0.01f)
+            {
+                continue;
+            }
 
-        const float ApproxHalfWidth = bPolishEnabled ? 235.0f * PolishBadgePulse : 265.0f * PolishBadgePulse;
-        const FVector2D HeadlinePos(ViewportSize.X * 0.5f - ApproxHalfWidth, ViewportSize.Y * 0.105f);
+            const FVector WorldPos = State.LastWorldLocation + FVector(0.0f, 0.0f, 76.0f);
+            FVector2D ScreenPixels = FVector2D::ZeroVector;
+            if (!PC->ProjectWorldLocationToScreen(WorldPos, ScreenPixels, true))
+            {
+                continue;
+            }
 
-        // Subtle drop shadow for crisp legibility matching reference video
-        FSlateDrawElement::MakeText(
-            OutDrawElements,
-            LayerId++,
-            AllottedGeometry.ToPaintGeometry(FSlateLayoutTransform(HeadlinePos + FVector2D(2.0f, 3.0f))),
-            FText::FromString(HeadlineText),
-            HeadlineFont,
-            ESlateDrawEffect::None,
-            FLinearColor(0.0f, 0.0f, 0.0f, 0.45f));
+            FVector2D BarCenter(ScreenPixels.X * InvScaleX, ScreenPixels.Y * InvScaleY);
+            if (State.ShakeTimer > 0.0f)
+            {
+                BarCenter.X += FMath::Sin(State.ShakeTimer * 110.0f) * 3.5f;
+                BarCenter.Y += FMath::Cos(State.ShakeTimer * 85.0f) * 1.5f;
+            }
 
-        FSlateDrawElement::MakeText(
-            OutDrawElements,
-            LayerId++,
-            AllottedGeometry.ToPaintGeometry(FSlateLayoutTransform(HeadlinePos)),
-            FText::FromString(HeadlineText),
-            HeadlineFont,
-            ESlateDrawEffect::None,
-            HeadlineColor);
+            const float BarWidth = 46.0f * State.Scale;
+            const float BarHeight = 5.5f * State.Scale;
+            const FVector2D BarSize(BarWidth, BarHeight);
+            const FVector2D BarTopLeft = BarCenter - (BarSize * 0.5f);
+
+            // Outer border / dark backing
+            const FVector2D BorderPad(1.5f, 1.5f);
+            FSlateDrawElement::MakeBox(
+                OutDrawElements,
+                LayerId++,
+                AllottedGeometry.ToPaintGeometry(BarSize + BorderPad * 2.0f, FSlateLayoutTransform(BarTopLeft - BorderPad)),
+                DefaultBrush,
+                ESlateDrawEffect::None,
+                FLinearColor(0.02f, 0.02f, 0.03f, 0.94f * State.Alpha));
+
+            // Empty dark track
+            FSlateDrawElement::MakeBox(
+                OutDrawElements,
+                LayerId++,
+                AllottedGeometry.ToPaintGeometry(BarSize, FSlateLayoutTransform(BarTopLeft)),
+                DefaultBrush,
+                ESlateDrawEffect::None,
+                FLinearColor(0.07f, 0.06f, 0.08f, 0.95f * State.Alpha));
+
+            // Delayed white damage catch-up bar
+            const float TrailWidth = BarWidth * FMath::Clamp(State.TrailingPercent, 0.0f, 1.0f);
+            if (TrailWidth > 0.5f)
+            {
+                FSlateDrawElement::MakeBox(
+                    OutDrawElements,
+                    LayerId++,
+                    AllottedGeometry.ToPaintGeometry(FVector2D(TrailWidth, BarHeight), FSlateLayoutTransform(BarTopLeft)),
+                    DefaultBrush,
+                    ESlateDrawEffect::None,
+                    FLinearColor(1.0f, 1.0f, 1.0f, 0.96f * State.Alpha));
+            }
+
+            // Current red health fill (base color)
+            const float FillWidth = BarWidth * FMath::Clamp(State.DisplayedPercent, 0.0f, 1.0f);
+            if (FillWidth > 0.5f)
+            {
+                FSlateDrawElement::MakeBox(
+                    OutDrawElements,
+                    LayerId++,
+                    AllottedGeometry.ToPaintGeometry(FVector2D(FillWidth, BarHeight), FSlateLayoutTransform(BarTopLeft)),
+                    DefaultBrush,
+                    ESlateDrawEffect::None,
+                    FLinearColor(0.92f, 0.14f, 0.12f, 1.0f * State.Alpha));
+            }
+        }
     }
 
-    // 2. Subtle Combo Sub-Callout under Headline
-    if (ComboAlpha > 0.01f && CurrentCombo > 1)
+    // 2. Floating Damage Numbers Only
+    if (PC)
     {
-        const FString ComboStr = (CurrentCombo == 2)
-            ? TEXT("COMBO x2")
-            : TEXT("FINISHER!");
-        const FLinearColor ComboColor = FLinearColor(1.0f, 0.84f, 0.28f, ComboAlpha * 0.92f);
-        const FVector2D ComboCenterPos(ViewportSize.X * 0.5f - 68.0f, ViewportSize.Y * 0.175f);
+        for (const FFloatingCombatEntry& Entry : ActiveFloatingEntries)
+        {
+            FVector2D ScreenPixels = FVector2D::ZeroVector;
+            if (!PC->ProjectWorldLocationToScreen(Entry.WorldOrigin, ScreenPixels, true))
+            {
+                continue;
+            }
 
-        FSlateDrawElement::MakeText(
-            OutDrawElements,
-            LayerId++,
-            AllottedGeometry.ToPaintGeometry(FSlateLayoutTransform(ComboCenterPos)),
-            FText::FromString(ComboStr),
-            ComboFont,
-            ESlateDrawEffect::None,
-            ComboColor);
+            const FVector2D BasePos(ScreenPixels.X * InvScaleX, ScreenPixels.Y * InvScaleY);
+            const FVector2D FinalPos = BasePos + Entry.ScreenOffset;
+
+            const float NormTime = FMath::Clamp(Entry.Elapsed / Entry.Duration, 0.0f, 1.0f);
+            const float Alpha = (NormTime < 0.72f)
+                ? 1.0f
+                : FMath::Clamp(1.0f - ((NormTime - 0.72f) / 0.28f), 0.0f, 1.0f);
+
+            const int32 ScaledFontSize = FMath::Clamp(FMath::RoundToInt(Entry.BaseFontSize * Entry.Scale), 10, 56);
+            const FSlateFontInfo DmgFont = FCoreStyle::GetDefaultFontStyle(Entry.bPolished ? "Bold" : "Regular", ScaledFontSize);
+
+            FLinearColor DmgColor = Entry.PrimaryColor;
+            DmgColor.A *= Alpha;
+
+            DrawOutlinedText(
+                OutDrawElements,
+                LayerId,
+                AllottedGeometry,
+                Entry.DamageText,
+                DmgFont,
+                FinalPos,
+                DmgColor,
+                Alpha,
+                Entry.bPolished);
+        }
     }
 
-    // 3. Minimal Unobtrusive Bottom Controls Hint
+    // 3. Sleek Bottom Controls & Live Polish Status Bar
     {
-        const FString LegendText = TEXT("[WASD] Move    [Mouse] Aim    [LMB] Slash    [T] Toggle Feedback");
-        const FVector2D LegendPos(ViewportSize.X * 0.5f - 195.0f, ViewportSize.Y - 34.0f);
+        const FVector2D BarSize(510.0f, 30.0f);
+        const FVector2D BarCenter(ViewportSize.X * 0.5f, ViewportSize.Y - 28.0f);
+        const FVector2D BarTopLeft = BarCenter - (BarSize * 0.5f);
 
-        FSlateDrawElement::MakeText(
+        FSlateDrawElement::MakeBox(
             OutDrawElements,
             LayerId++,
-            AllottedGeometry.ToPaintGeometry(FSlateLayoutTransform(LegendPos)),
-            FText::FromString(LegendText),
-            LegendFont,
+            AllottedGeometry.ToPaintGeometry(BarSize, FSlateLayoutTransform(BarTopLeft)),
+            DefaultBrush,
             ESlateDrawEffect::None,
-            FLinearColor(0.75f, 0.76f, 0.80f, 0.45f));
+            FLinearColor(0.02f, 0.02f, 0.04f, 0.62f));
+
+        const FSlateFontInfo ControlsFont = FCoreStyle::GetDefaultFontStyle("Regular", 10);
+        const FSlateFontInfo StatusFont = FCoreStyle::GetDefaultFontStyle("Bold", FMath::RoundToInt(11.0f * PolishBadgePulse));
+
+        DrawOutlinedText(
+            OutDrawElements,
+            LayerId,
+            AllottedGeometry,
+            TEXT("[WASD] Move     [Mouse] Aim     [LMB] Attack"),
+            ControlsFont,
+            BarCenter - FVector2D(72.0f, 0.0f),
+            FLinearColor(0.78f, 0.80f, 0.86f, 0.85f),
+            0.6f,
+            true);
+
+        const FString StatusText = bPolishEnabled
+            ? TEXT("[T] POLISH: ON")
+            : TEXT("[T] POLISH: OFF");
+        const FLinearColor StatusColor = bPolishEnabled
+            ? FLinearColor(0.28f, 0.96f, 0.58f, 0.98f)
+            : FLinearColor(0.95f, 0.42f, 0.38f, 0.95f);
+
+        DrawOutlinedText(
+            OutDrawElements,
+            LayerId,
+            AllottedGeometry,
+            StatusText,
+            StatusFont,
+            BarCenter + FVector2D(168.0f, 0.0f),
+            StatusColor,
+            0.85f,
+            true);
     }
 
     return LayerId;

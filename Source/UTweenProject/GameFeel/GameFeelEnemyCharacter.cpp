@@ -211,6 +211,17 @@ void AGameFeelEnemyCharacter::TakeHit(float Damage, const FVector& HitDirection,
     {
         const FVector LaunchVel = HitDirection * KnockbackForce + FVector(0.f, 0.f, 80.f);
         LaunchCharacter(LaunchVel, true, true);
+
+        if (DamageNumberClass && GetWorld())
+        {
+            FActorSpawnParameters Params;
+            Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+            if (AGameFeelDamageNumber* DmgNum = GetWorld()->SpawnActor<AGameFeelDamageNumber>(DamageNumberClass, GetActorLocation(), FRotator::ZeroRotator, Params))
+            {
+                DmgNum->InitializeDamage(Damage, GetActorLocation());
+            }
+        }
     }
     else
     {
@@ -222,18 +233,18 @@ void AGameFeelEnemyCharacter::TakeHit(float Damage, const FVector& HitDirection,
             TweenSys->KillByTag(FTweenTag(TEXT("EnemyIdle")));
         }
 
-        // 1. Emissive White Hit Flash via UTween
+        // 1. Emissive Warm Golden-Peach Hit Flash via UTween
         if (DynamicMaterial)
         {
-            DynamicMaterial->SetVectorParameterValue(FName("EmissiveColor"), FLinearColor(6.0f, 6.0f, 6.0f, 1.0f));
-            UTween::MaterialVector(DynamicMaterial, FName("EmissiveColor"), FLinearColor::Black, 0.14f)
+            DynamicMaterial->SetVectorParameterValue(FName("EmissiveColor"), FLinearColor(5.5f, 3.2f, 1.4f, 1.0f));
+            UTween::MaterialVector(DynamicMaterial, FName("EmissiveColor"), FLinearColor::Black, 0.18f)
                 .SetEase(ETweenEase::OutQuad);
         }
 
         // 2. Squash & Stretch Elasticity + Angular Flinch Recoil via UTween
         if (VisualRoot)
         {
-            VisualRoot->SetRelativeScale3D(FVector(1.35f, 1.35f, 0.60f));
+            VisualRoot->SetRelativeScale3D(FVector(0.84f, 0.84f, 1.38f));
             const FRotator FlinchRot(
                 FMath::RandRange(-12.f, 12.f),
                 FMath::RandRange(-18.f, 18.f),
@@ -395,6 +406,14 @@ void AGameFeelEnemyCharacter::ResetEnemy()
 
 void AGameFeelEnemyCharacter::StartIdleAnimation()
 {
+    if (AGameFeelPlayerCharacter* Player = Cast<AGameFeelPlayerCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
+    {
+        if (!Player->IsPolishEnabled())
+        {
+            return;
+        }
+    }
+
     if (VisualRoot && !bIsDead)
     {
         UTween::ComponentRelativeScale(VisualRoot, FVector(1.04f, 1.04f, 0.95f), 0.75f)
