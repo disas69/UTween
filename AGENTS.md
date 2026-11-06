@@ -6,15 +6,16 @@ This document is the primary reference for AI agents and human developers workin
 
 ## 1. Project Overview
 
-`UTween` is a runtime tween and feedback animation framework for Unreal Engine 5.8 (5.8.2) (inspired by Unity's DOTween and Godot Tweens).
+`UTween` is a high-performance runtime tween and game-feel feedback animation framework for Unreal Engine 5.8 (5.8.2) (inspired by Unity's DOTween and Godot Tweens).
 
-It provides a high-performance, fluent C++ API, a convenience macro layer, and Blueprint function libraries to animate:
-- **UMG Widgets**: Render translation, scale, rotation, opacity, color/tint (render-space transforms, avoiding expensive Slate layout recalculations).
-- **Actors**: World location, rotation (quaternion shortest-path slerp), and scale.
+It provides a fluent C++ API, convenience macros, and Blueprint function libraries to animate:
+- **UMG Widgets**: Render translation, scale, rotation, opacity, color/tint, and Canvas Slot layout (position/size).
+- **Actors**: World location, rotation (quaternion shortest-path slerp with multi-turn Euler fallback), and scale.
 - **Scene Components**: Relative location, relative rotation, and relative scale.
 - **Materials**: Scalar and vector parameters on `UMaterialInstanceDynamic`.
-- **Generic Values**: Arbitrary `float`, `FVector2D`, `FVector`, `FRotator`, and `FLinearColor` values animated via lambdas or member function pointers.
-- **Sequences**: Chained and parallel timeline sequences with intervals and callbacks.
+- **Generic Values**: Arbitrary `float`, `FVector2D`, `FVector`, `FRotator`, and `FLinearColor` values via lambdas or member function pointers.
+- **Juice & Game-Feel**: Dedicated Punch and Shake animations for widgets, actors, and components.
+- **Sequences**: Chained and parallel timeline sequences with intervals, nested loops, and callbacks.
 
 ---
 
@@ -22,6 +23,8 @@ It provides a high-performance, fluent C++ API, a convenience macro layer, and B
 
 ```text
 UTween/
+├── .agents/
+│   └── mcp_config.json                         <-- Canonical Unreal Engine MCP configuration
 ├── Plugins/
 │   └── UTween/                                 <-- Core Plugin (Standalone & Redistributable)
 │       ├── UTween.uplugin                      <-- Plugin descriptor (Runtime, Beta, EnabledByDefault)
@@ -41,7 +44,9 @@ UTween/
 │           │   ├── UTweenModule.h              <-- IModuleInterface definition and LogUTween declaration
 │           │   └── UTweenSharedPCH.h           <-- Shared PCH header
 │           └── Private/
-│               ├── Tests/UTweenTests.cpp       <-- Automation tests (unit tests for easing, loops, sequences, lifecycle)
+│               ├── Tests/
+│               │   ├── UTweenTests.cpp         <-- Automation tests (easing, loops, sequences, lifecycle, juice)
+│               │   └── UTweenBenchmarkTests.cpp<-- Stress benchmarks (easing, throughput, churn, tag filtering)
 │               ├── UTween.cpp
 │               ├── UTweenSubsystem.cpp
 │               ├── TweenHandle.cpp
@@ -56,15 +61,25 @@ UTween/
 │   │   ├── UTweenProject.Build.cs
 │   │   ├── UTweenProject.h
 │   │   ├── UTweenProject.cpp
-│   │   └── Examples/
-│   │       ├── UTweenDemoManager.h/.cpp        <-- Demonstration actor spawning primitive shapes with 10 tween effects
-│   │       ├── UTweenFluentExample.h/.cpp      <-- Pure fluent C++ API usage examples
-│   │       └── UTweenMacrosExample.h/.cpp      <-- Macro API usage examples
+│   │   ├── Examples/                           <-- Pure C++ & macro API usage examples
+│   │   │   ├── UTweenDemoManager.h/.cpp        <-- Demonstration actor spawning primitive shapes with 10 tween effects
+│   │   │   ├── UTweenFluentExample.h/.cpp      <-- Pure fluent C++ API examples
+│   │   │   └── UTweenMacrosExample.h/.cpp      <-- Macro API examples
+│   │   └── GameFeel/                           <-- Complete game-feel combat sandbox demo
+│   │       ├── GameFeelPlayerCharacter.h/.cpp  <-- Player with juice attack sequences, squash/stretch, and cam shake
+│   │       ├── GameFeelEnemyCharacter.h/.cpp   <-- Enemy with hit-stop, flash, knockback, and dissolve death sequence
+│   │       ├── GameFeelHUDWidget.h/.cpp        <-- Responsive UI with combo punch, health bar tween, and hurt vignettes
+│   │       ├── GameFeelSlashArc.h/.cpp         <-- Sliced sword slash trail actor with scale/dissolve tweening
+│   │       ├── GameFeelImpactSparks.h/.cpp     <-- Directional spark burst FX with randomized outward tweens
+│   │       ├── GameFeelDamageNumber.h/.cpp     <-- Floating world damage counter with bounce curve & fade
+│   │       ├── GameFeelPlayerController.h/.cpp <-- Top-down input and mouse aiming
+│   │       └── GameFeelGameMode.h/.cpp         <-- Spawning, round management, and global combat orchestration
 │   ├── UTween.Target.cs                        <-- Target rules for standalone game
 │   └── UTweenEditor.Target.cs                  <-- Target rules for editor
 ├── Scripts/
-│   ├── Sync-UnrealProject.ps1                  <-- PowerShell automation to regenerate project files and compile targets
-│   └── Sync-UnrealProject.bat                  <-- Batch wrapper
+│   ├── Sync-UnrealProject.ps1                  <-- PowerShell automation to regenerate project files, build, and test
+│   ├── Sync-UnrealProject.bat                  <-- Batch wrapper
+│   └── Run-Benchmark.py                        <-- Automation benchmark runner (via Unreal MCP or headless)
 └── UTween.uproject                             <-- Engine association 5.8, enables UTween plugin and UTweenProject module
 ```
 
@@ -75,7 +90,7 @@ UTween/
 1. **Central Runtime Owner (`UTweenSubsystem`)**:
    - Subclass of `UGameInstanceSubsystem`.
    - Ticks via `FTSTicker::GetCoreTicker()` so tweens can execute even during world pause or time dilation when configured.
-   - Manages arrays of `ActiveTweens` and `ActiveSequences`.
+   - Manages arrays of `ActiveTweens` and `ActiveSequences` with $O(1)$ amortized tag index lookups (`TagToTweenMap`).
    - Provides global controls: `PauseAll()`, `ResumeAll()`, `KillAll()`, and tag-based operations (`KillByTag()`, `PauseByTag()`, `ResumeByTag()`).
    - Diagnostic counters (`GetActiveTweenCount()`, `GetActiveSequenceCount()`).
 
@@ -104,8 +119,9 @@ UTween/
 - **`int64` for IDs**: Unreal reflection (`UPROPERTY`) does not support `uint64`. `FTweenId` uses `int64` to maintain full Blueprint accessibility.
 - **RTTI-Free Type Safety**: Unreal modules compile with `-fno-rtti`. Type-safe downcasting in `TTweenInstance<T>` is implemented using the sentinel address pattern (`TTweenValueTypeTag<T>::Sentinel`).
 - **Hybrid Rotator Interpolation**: `UTweenLerp::LerpRotator` uses quaternion spherical linear interpolation (`FQuat::Slerp`) for sub-360-degree shortest-path orientations, and falls back to Euler interpolation when any axis delta indicates an intentional 360-degree or multi-turn spin (`|delta| >= 360` or identical start/end quaternions) to prevent 360-degree rotations from collapsing into 0-degree stationary degenerate paths.
+- **Tag Index Acceleration**: `UTweenSubsystem` maintains an internal tag-to-tween index map (`TagToTweenMap`) updated on registration and unregistration, ensuring tag queries (`KillByTag`, `PauseByTag`) execute in $O(K)$ where $K$ is the matching tag count rather than scanning all active tweens ($O(N)$).
+- **Tick Snapshotting & Compaction**: The subsystem snapshots the active collection count at the start of `Tick()`. New tweens registered inside callbacks are deferred to the next tick to prevent iterator invalidation. Dead instances are pruned using fast swap-removal compaction.
 - **Module Name Separation**: To prevent module name collision in UnrealBuildTool (since the project is named `UTween`), the host project module is named `UTweenProject`, and the plugin module is named `UTween`.
-- **Tick Snapshotting**: The subsystem snapshots the active collection count at the start of `Tick()`. New tweens registered inside callbacks are deferred to the next tick to prevent iterator invalidation.
 - **Deinitialization Sequence**: On subsystem shutdown, sequences are killed first so their `OnKill` callbacks fire while still holding their child tweens, followed by clearing standalone tweens.
 - **Telemetry & Stats**: Integrated with Unreal Engine stats under `STATGROUP_UTween` (`stat UTween` in console reveals active count and tick cycle cost).
 
@@ -151,6 +167,11 @@ UTween/
 > To run automation tests after building:
 > ```powershell
 > powershell -ExecutionPolicy Bypass -File Scripts/Sync-UnrealProject.ps1 -BuildEditor -RunTests
+> ```
+>
+> To execute the performance benchmark suite:
+> ```powershell
+> python Scripts/Run-Benchmark.py
 > ```
 
 ### What this script does:
