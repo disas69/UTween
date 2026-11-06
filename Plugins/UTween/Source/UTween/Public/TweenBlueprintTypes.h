@@ -7,8 +7,8 @@
 #include "TweenBlueprintTypes.generated.h"
 
 /**
- * Blueprint-friendly FTweenHandle. Stores only the int64 ID and resolves
- * to a live handle through the active UTweenSubsystem. UPROPERTY-safe.
+ * Blueprint-friendly FTweenHandle. Stores the int64 ID (UPROPERTY) and a
+ * non-reflected weak instance pointer for O(1) resolution without subsystem lookup.
  */
 USTRUCT(BlueprintType)
 struct UTWEEN_API FBPTweenHandle
@@ -18,9 +18,12 @@ struct UTWEEN_API FBPTweenHandle
     UPROPERTY(BlueprintReadOnly, Category = "UTween")
     int64 TweenIdValue = 0;
 
+    TWeakPtr<FTweenInstanceBase> CachedInstance;
+
     FBPTweenHandle() = default;
     explicit FBPTweenHandle(FTweenHandle InHandle)
         : TweenIdValue(InHandle.GetId().Value)
+        , CachedInstance(InHandle.GetInstance())
     {
     }
 
@@ -44,9 +47,12 @@ struct UTWEEN_API FBPTweenSequenceHandle
     UPROPERTY(BlueprintReadOnly, Category = "UTween")
     int64 SequenceIdValue = 0;
 
+    TWeakPtr<FTweenSequence> CachedSequence;
+
     FBPTweenSequenceHandle() = default;
     explicit FBPTweenSequenceHandle(FTweenSequenceHandle InHandle)
         : SequenceIdValue(InHandle.GetId().Value)
+        , CachedSequence(InHandle.GetInstance())
     {
     }
 

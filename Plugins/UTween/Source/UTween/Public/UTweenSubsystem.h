@@ -21,6 +21,7 @@ public:
     virtual void Deinitialize() override;
 
     static UTweenSubsystem* Get(const UObject* WorldContext);
+    static UTweenSubsystem* GetLastActiveSubsystem();
 
     /** Acquire a pooled tween instance for the given type, or allocate a new one if pool is empty. */
     template <typename T>
@@ -28,6 +29,9 @@ public:
 
     /** Recycle a dead tween instance back into the appropriate pool. */
     void RecycleTween(const TSharedPtr<FTweenInstanceBase>& Instance);
+
+    /** Recycle all child tween instances owned by a sequence (and nested subsequences). */
+    void RecycleSequenceChildren(FTweenSequence& Sequence);
 
     /** Empty all instance pools. */
     void EmptyPools();
@@ -72,12 +76,17 @@ public:
     void Tick(float DeltaTime);
 
 private:
+    static TWeakObjectPtr<UTweenSubsystem> LastActiveSubsystem;
+
     FTSTicker::FDelegateHandle TickDelegateHandle;
 
     bool bIsTicking = false;
 
     TArray<TSharedPtr<FTweenInstanceBase>> ActiveTweens;
     TArray<TSharedPtr<FTweenSequence>> ActiveSequences;
+
+    TMap<FTweenId, FTweenInstanceBase*> TweenById;
+    TMap<FTweenId, FTweenSequence*> SequenceById;
 
     TMap<FTweenTag, TArray<FTweenInstanceBase*>> TaggedTweens;
     TMap<FTweenTag, TArray<FTweenSequence*>> TaggedSequences;

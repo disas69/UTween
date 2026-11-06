@@ -119,6 +119,7 @@ namespace
         auto* Typed = static_cast<TTweenInstance<T>*>(Inst);
         Typed->StartValue = InValue;
         Typed->bUseFrom = true;
+        Typed->EndpointsCache.Prepare(Typed->StartValue, Typed->EndValue);
     }
 }
 

@@ -40,6 +40,7 @@ class UTWEEN_API FTweenSequence : public TSharedFromThis<FTweenSequence>
 public:
     FTweenId Id;
     FTweenTag Tag;
+    int32 ActiveIndex = INDEX_NONE;
     ETweenState State = ETweenState::Pending;
 
     TArray<FSequenceAction> Actions;

@@ -132,7 +132,7 @@ private:
     static FTweenHandle CreateValueTween(
         const UObject* WorldContext,
         const T& From, const T& To, float Duration,
-        TFunction<void(const T&)> OnUpdate,
+        TFunction<void(TTweenApplyArg<T>)> OnUpdate,
         const TCHAR* MethodName);
 
     template <typename TValue>
@@ -141,7 +141,7 @@ private:
         const TValue& To,
         float Duration,
         TFunction<TValue()> Getter,
-        TFunction<void(const TValue&)> Apply,
+        TFunction<void(TTweenApplyArg<TValue>)> Apply,
         TFunction<TValue(const TValue&, const TValue&, float)> Lerp,
         const TCHAR* MethodName);
 };
@@ -185,7 +185,7 @@ FTweenHandle UTween::ValueMember(TObj* Obj, TValue From, TValue To, float Durati
         if constexpr (bIsMember)
         {
             auto Member = Callback;
-            Instance->ApplyFunc = [Weak, Member](const TValue& V)
+            Instance->ApplyFunc = [Weak, Member](TTweenApplyArg<TValue> V)
             {
                 if (TObj* O = Weak.Get())
                 {
@@ -195,7 +195,7 @@ FTweenHandle UTween::ValueMember(TObj* Obj, TValue From, TValue To, float Durati
         }
         else
         {
-            Instance->ApplyFunc = [Weak, Fn = std::forward<TCallable>(Callback)](const TValue& V)
+            Instance->ApplyFunc = [Weak, Fn = std::forward<TCallable>(Callback)](TTweenApplyArg<TValue> V)
             {
                 if (Weak.IsValid())
                 {
@@ -209,14 +209,14 @@ FTweenHandle UTween::ValueMember(TObj* Obj, TValue From, TValue To, float Durati
         if constexpr (bIsMember)
         {
             auto Member = Callback;
-            Instance->ApplyFunc = [Obj, Member](const TValue& V)
+            Instance->ApplyFunc = [Obj, Member](TTweenApplyArg<TValue> V)
             {
                 (Obj->*Member)(V);
             };
         }
         else
         {
-            Instance->ApplyFunc = [Obj, Fn = std::forward<TCallable>(Callback)](const TValue& V)
+            Instance->ApplyFunc = [Obj, Fn = std::forward<TCallable>(Callback)](TTweenApplyArg<TValue> V)
             {
                 Fn(V);
             };

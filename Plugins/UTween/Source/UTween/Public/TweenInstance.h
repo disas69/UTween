@@ -6,6 +6,10 @@
 #include "UObject/WeakObjectPtr.h"
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
+#include <type_traits>
+
+template <typename T>
+using TTweenApplyArg = std::conditional_t<std::is_arithmetic_v<T>, T, const T&>;
 
 template <typename T>
 struct TTweenValueTypeTraits
@@ -30,10 +34,12 @@ public:
     virtual ~FTweenInstanceBase() = default;
 
     friend class FTweenSequence;
+    friend class UTweenSubsystem;
 
     FTweenId Id;
     FTweenTag Tag;
     FName DebugName;
+    int32 ActiveIndex = INDEX_NONE;
 
     float Duration = 0.f;
     float Elapsed = 0.f;
@@ -87,6 +93,7 @@ protected:
     virtual void CaptureStartValue() = 0;
     virtual void ApplyRelativeOffset() {}
     virtual void SwapStartAndEnd() {}
+    virtual void OnValuesPrepared() {}
 
     void HandleLoopOrComplete();
 
@@ -104,7 +111,7 @@ namespace UTweenLerp
      * Euler interpolation is used. Otherwise, spherical linear interpolation (quaternion slerp)
      * is used for shortest-path orientation.
      */
-    FORCEINLINE FRotator LerpRotator(const FRotator& A, const FRotator& B, float Alpha)
+    FORCEINLINE bool ShouldUseEulerRotatorLerp(const FRotator& A, const FRotator& B, FQuat& OutQA, FQuat& OutQB)
     {
         const float DeltaPitch = FMath::Abs(B.Pitch - A.Pitch);
         const float DeltaYaw   = FMath::Abs(B.Yaw - A.Yaw);
@@ -112,23 +119,30 @@ namespace UTweenLerp
 
         if (DeltaPitch >= 360.f || DeltaYaw >= 360.f || DeltaRoll >= 360.f)
         {
-            return FRotator(
-                FMath::Lerp(A.Pitch, B.Pitch, Alpha),
-                FMath::Lerp(A.Yaw, B.Yaw, Alpha),
-                FMath::Lerp(A.Roll, B.Roll, Alpha)
-            );
+            return true;
         }
 
-        const FQuat QA = A.Quaternion();
-        const FQuat QB = B.Quaternion();
+        OutQA = A.Quaternion();
+        OutQB = B.Quaternion();
 
-        if (QA.Equals(QB, 1e-4f) || QA.Equals(-QB, 1e-4f))
+        return OutQA.Equals(OutQB, 1e-4f) || OutQA.Equals(-OutQB, 1e-4f);
+    }
+
+    FORCEINLINE FRotator LerpRotatorEuler(const FRotator& A, const FRotator& B, float Alpha)
+    {
+        return FRotator(
+            FMath::Lerp(A.Pitch, B.Pitch, Alpha),
+            FMath::Lerp(A.Yaw, B.Yaw, Alpha),
+            FMath::Lerp(A.Roll, B.Roll, Alpha)
+        );
+    }
+
+    FORCEINLINE FRotator LerpRotator(const FRotator& A, const FRotator& B, float Alpha)
+    {
+        FQuat QA, QB;
+        if (ShouldUseEulerRotatorLerp(A, B, QA, QB))
         {
-            return FRotator(
-                FMath::Lerp(A.Pitch, B.Pitch, Alpha),
-                FMath::Lerp(A.Yaw, B.Yaw, Alpha),
-                FMath::Lerp(A.Roll, B.Roll, Alpha)
-            );
+            return LerpRotatorEuler(A, B, Alpha);
         }
 
         return FQuat::Slerp(QA, QB, Alpha).Rotator();
@@ -159,6 +173,50 @@ namespace UTweenDefaults
     }
 }
 
+template <typename T>
+struct TTweenEndpointsCache
+{
+    FORCEINLINE void Prepare(const T&, const T&) {}
+    FORCEINLINE void SwapEndpoints() {}
+    FORCEINLINE void Reset() {}
+    FORCEINLINE T EvaluateDefault(const T& Start, const T& End, float Alpha) const
+    {
+        return UTweenDefaults::DefaultLerp<T>(Start, End, Alpha);
+    }
+};
+
+template <>
+struct TTweenEndpointsCache<FRotator>
+{
+    FQuat StartQuat{ForceInit};
+    FQuat EndQuat{ForceInit};
+    bool bUseEuler = true;
+
+    FORCEINLINE void Prepare(const FRotator& Start, const FRotator& End)
+    {
+        bUseEuler = UTweenLerp::ShouldUseEulerRotatorLerp(Start, End, StartQuat, EndQuat);
+    }
+
+    FORCEINLINE void SwapEndpoints()
+    {
+        Swap(StartQuat, EndQuat);
+    }
+
+    FORCEINLINE void Reset()
+    {
+        bUseEuler = true;
+    }
+
+    FORCEINLINE FRotator EvaluateDefault(const FRotator& Start, const FRotator& End, float Alpha) const
+    {
+        if (bUseEuler)
+        {
+            return UTweenLerp::LerpRotatorEuler(Start, End, Alpha);
+        }
+        return FQuat::Slerp(StartQuat, EndQuat, Alpha).Rotator();
+    }
+};
+
 /** Typed tween instance carrying start/end values, lerp, apply, and getter. */
 template <typename T>
 class TTweenInstance : public FTweenInstanceBase
@@ -167,9 +225,10 @@ public:
     T StartValue{};
     T EndValue{};
     T CurrentValue{};
+    TTweenEndpointsCache<T> EndpointsCache;
 
     TFunction<T(const T&, const T&, float)> LerpFunc;
-    TFunction<void(const T&)> ApplyFunc;
+    TFunction<void(TTweenApplyArg<T>)> ApplyFunc;
     TFunction<T()> GetterFunc;
 
     TTweenInstance()
@@ -183,6 +242,7 @@ public:
         StartValue = T{};
         EndValue = T{};
         CurrentValue = T{};
+        EndpointsCache.Reset();
         LerpFunc = nullptr;
         ApplyFunc = nullptr;
         GetterFunc = nullptr;
@@ -197,7 +257,7 @@ protected:
         }
         else
         {
-            CurrentValue = UTweenDefaults::DefaultLerp<T>(StartValue, EndValue, Alpha);
+            CurrentValue = EndpointsCache.EvaluateDefault(StartValue, EndValue, Alpha);
         }
 
         if (ApplyFunc)
@@ -222,5 +282,11 @@ protected:
     virtual void SwapStartAndEnd() override
     {
         Swap(StartValue, EndValue);
+        EndpointsCache.SwapEndpoints();
+    }
+
+    virtual void OnValuesPrepared() override
+    {
+        EndpointsCache.Prepare(StartValue, EndValue);
     }
 };

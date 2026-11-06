@@ -46,6 +46,14 @@ namespace
 
 FTweenHandle FBPTweenHandle::Resolve(const UObject* WorldContext) const
 {
+    if (TSharedPtr<FTweenInstanceBase> Pinned = CachedInstance.Pin())
+    {
+        if (Pinned->Id.Value == TweenIdValue && !Pinned->IsKilled())
+        {
+            return FTweenHandle(Pinned);
+        }
+    }
+
     UTweenSubsystem* Sub = ResolveSubsystem(WorldContext);
     if (!Sub)
     {
@@ -61,6 +69,14 @@ bool FBPTweenHandle::IsValid(const UObject* WorldContext) const
 
 FTweenSequenceHandle FBPTweenSequenceHandle::Resolve(const UObject* WorldContext) const
 {
+    if (TSharedPtr<FTweenSequence> Pinned = CachedSequence.Pin())
+    {
+        if (Pinned->Id.Value == SequenceIdValue && !Pinned->IsKilled())
+        {
+            return FTweenSequenceHandle(Pinned);
+        }
+    }
+
     UTweenSubsystem* Sub = ResolveSubsystem(WorldContext);
     if (!Sub)
     {

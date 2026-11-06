@@ -37,6 +37,7 @@ void FTweenInstanceBase::Tick(float DeltaTime)
         {
             ApplyRelativeOffset();
         }
+        OnValuesPrepared();
         bValuesInitialized = true;
     }
 
@@ -107,6 +108,7 @@ void FTweenInstanceBase::Complete()
         {
             ApplyRelativeOffset();
         }
+        OnValuesPrepared();
         bValuesInitialized = true;
     }
     bStartFired = true;
@@ -206,6 +208,7 @@ void FTweenInstanceBase::ResetForPool()
     Id = FTweenId{};
     Tag = FTweenTag();
     DebugName = NAME_None;
+    ActiveIndex = INDEX_NONE;
     Duration = 0.f;
     Elapsed = 0.f;
     Delay = 0.f;

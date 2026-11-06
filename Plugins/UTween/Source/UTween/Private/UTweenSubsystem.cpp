@@ -14,12 +14,23 @@ DECLARE_DWORD_COUNTER_STAT(TEXT("Active Tweens"), STAT_UTween_ActiveTweens, STAT
 DECLARE_DWORD_COUNTER_STAT(TEXT("Active Sequences"), STAT_UTween_ActiveSequences, STATGROUP_UTween);
 DECLARE_CYCLE_STAT(TEXT("Tick"), STAT_UTween_Tick, STATGROUP_UTween);
 
+TWeakObjectPtr<UTweenSubsystem> UTweenSubsystem::LastActiveSubsystem = nullptr;
+
+UTweenSubsystem* UTweenSubsystem::GetLastActiveSubsystem()
+{
+    return LastActiveSubsystem.Get();
+}
+
 void UTweenSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
 
+    LastActiveSubsystem = this;
+
     ActiveTweens.Reserve(256);
     ActiveSequences.Reserve(64);
+    TweenById.Reserve(256);
+    SequenceById.Reserve(64);
     FloatPool.Reserve(128);
     VectorPool.Reserve(64);
 
@@ -42,15 +53,22 @@ void UTweenSubsystem::Deinitialize()
         TickDelegateHandle.Reset();
     }
 
+    if (LastActiveSubsystem.Get() == this)
+    {
+        LastActiveSubsystem.Reset();
+    }
+
     // Kill sequences before tweens so OnKill callbacks fire while refs are live.
     for (const TSharedPtr<FTweenSequence>& Seq : ActiveSequences)
     {
         if (Seq.IsValid())
         {
             Seq->Kill();
+            RecycleSequenceChildren(*Seq);
         }
     }
     ActiveSequences.Reset();
+    SequenceById.Reset();
 
     KillAll();
     EmptyPools();
@@ -89,6 +107,8 @@ TSharedPtr<FTweenInstanceBase> UTweenSubsystem::RegisterTween(TSharedPtr<FTweenI
         return nullptr;
     }
 
+    LastActiveSubsystem = this;
+
     if (!Instance->Id.IsValid())
     {
         Instance->Id = FTweenId::Generate();
@@ -101,7 +121,8 @@ TSharedPtr<FTweenInstanceBase> UTweenSubsystem::RegisterTween(TSharedPtr<FTweenI
     }
 
     Instance->OwningSubsystem = this;
-    ActiveTweens.Add(Instance);
+    Instance->ActiveIndex = ActiveTweens.Add(Instance);
+    TweenById.Add(Instance->Id, Instance.Get());
 
     if (Instance->Tag.IsValid())
     {
@@ -113,65 +134,78 @@ TSharedPtr<FTweenInstanceBase> UTweenSubsystem::RegisterTween(TSharedPtr<FTweenI
 
 void UTweenSubsystem::RemoveTween(FTweenId Id)
 {
-    for (const TSharedPtr<FTweenInstanceBase>& Tween : ActiveTweens)
+    if (FTweenInstanceBase* const* Found = TweenById.Find(Id))
     {
-        if (Tween.IsValid() && Tween->Id == Id)
+        if (*Found)
         {
-            Tween->Kill();
-            break;
+            (*Found)->Kill();
         }
     }
 }
 
 TSharedPtr<FTweenInstanceBase> UTweenSubsystem::DetachTween(FTweenId Id)
 {
-    for (int32 Index = 0; Index < ActiveTweens.Num(); ++Index)
+    FTweenInstanceBase* RawPtr = nullptr;
+    if (!TweenById.RemoveAndCopyValue(Id, RawPtr) || !RawPtr)
     {
-        const TSharedPtr<FTweenInstanceBase>& Tween = ActiveTweens[Index];
-        if (Tween.IsValid() && Tween->Id == Id)
-        {
-            TSharedPtr<FTweenInstanceBase> Detached = Tween;
-            if (Detached->Tag.IsValid())
-            {
-                UnregisterTweenTag(Detached->Tag, Detached.Get());
-            }
-            if (bIsTicking)
-            {
-                ActiveTweens[Index] = nullptr;
-            }
-            else
-            {
-                ActiveTweens.RemoveAt(Index);
-            }
-            return Detached;
-        }
+        return nullptr;
     }
+
+    if (RawPtr->Tag.IsValid())
+    {
+        UnregisterTweenTag(RawPtr->Tag, RawPtr);
+    }
+
+    const int32 Index = RawPtr->ActiveIndex;
+    RawPtr->ActiveIndex = INDEX_NONE;
+
+    if (ActiveTweens.IsValidIndex(Index) && ActiveTweens[Index].Get() == RawPtr)
+    {
+        TSharedPtr<FTweenInstanceBase> Detached = MoveTemp(ActiveTweens[Index]);
+        if (!bIsTicking)
+        {
+            ActiveTweens.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+            if (ActiveTweens.IsValidIndex(Index) && ActiveTweens[Index].IsValid())
+            {
+                ActiveTweens[Index]->ActiveIndex = Index;
+            }
+        }
+        return Detached;
+    }
+
     return nullptr;
 }
 
 TSharedPtr<FTweenSequence> UTweenSubsystem::DetachSequence(FTweenId Id)
 {
-    for (int32 Index = 0; Index < ActiveSequences.Num(); ++Index)
+    FTweenSequence* RawPtr = nullptr;
+    if (!SequenceById.RemoveAndCopyValue(Id, RawPtr) || !RawPtr)
     {
-        const TSharedPtr<FTweenSequence>& Seq = ActiveSequences[Index];
-        if (Seq.IsValid() && Seq->Id == Id)
-        {
-            TSharedPtr<FTweenSequence> Detached = Seq;
-            if (Detached->Tag.IsValid())
-            {
-                UnregisterSequenceTag(Detached->Tag, Detached.Get());
-            }
-            if (bIsTicking)
-            {
-                ActiveSequences[Index] = nullptr;
-            }
-            else
-            {
-                ActiveSequences.RemoveAt(Index);
-            }
-            return Detached;
-        }
+        return nullptr;
     }
+
+    if (RawPtr->Tag.IsValid())
+    {
+        UnregisterSequenceTag(RawPtr->Tag, RawPtr);
+    }
+
+    const int32 Index = RawPtr->ActiveIndex;
+    RawPtr->ActiveIndex = INDEX_NONE;
+
+    if (ActiveSequences.IsValidIndex(Index) && ActiveSequences[Index].Get() == RawPtr)
+    {
+        TSharedPtr<FTweenSequence> Detached = MoveTemp(ActiveSequences[Index]);
+        if (!bIsTicking)
+        {
+            ActiveSequences.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+            if (ActiveSequences.IsValidIndex(Index) && ActiveSequences[Index].IsValid())
+            {
+                ActiveSequences[Index]->ActiveIndex = Index;
+            }
+        }
+        return Detached;
+    }
+
     return nullptr;
 }
 
@@ -182,13 +216,16 @@ TSharedPtr<FTweenSequence> UTweenSubsystem::RegisterSequence(TSharedPtr<FTweenSe
         return nullptr;
     }
 
+    LastActiveSubsystem = this;
+
     if (!Sequence->Id.IsValid())
     {
         Sequence->Id = FTweenId::Generate();
     }
 
     Sequence->OwningSubsystem = this;
-    ActiveSequences.Add(Sequence);
+    Sequence->ActiveIndex = ActiveSequences.Add(Sequence);
+    SequenceById.Add(Sequence->Id, Sequence.Get());
 
     if (Sequence->Tag.IsValid())
     {
@@ -257,8 +294,17 @@ void UTweenSubsystem::KillAll()
         {
             RecycleTween(Tween);
         }
+        for (const TSharedPtr<FTweenSequence>& Seq : ActiveSequences)
+        {
+            if (Seq.IsValid())
+            {
+                RecycleSequenceChildren(*Seq);
+            }
+        }
         ActiveTweens.Reset();
         ActiveSequences.Reset();
+        TweenById.Reset();
+        SequenceById.Reset();
         TaggedTweens.Reset();
         TaggedSequences.Reset();
     }
@@ -373,11 +419,16 @@ FTweenHandle UTweenSubsystem::FindTweenById(FTweenId Id) const
         return FTweenHandle();
     }
 
-    for (const TSharedPtr<FTweenInstanceBase>& Tween : ActiveTweens)
+    if (FTweenInstanceBase* const* Found = TweenById.Find(Id))
     {
-        if (Tween.IsValid() && Tween->Id == Id)
+        const FTweenInstanceBase* RawPtr = *Found;
+        if (RawPtr && ActiveTweens.IsValidIndex(RawPtr->ActiveIndex))
         {
-            return FTweenHandle(Tween);
+            const TSharedPtr<FTweenInstanceBase>& Shared = ActiveTweens[RawPtr->ActiveIndex];
+            if (Shared.Get() == RawPtr)
+            {
+                return FTweenHandle(Shared);
+            }
         }
     }
     return FTweenHandle();
@@ -390,11 +441,16 @@ FTweenSequenceHandle UTweenSubsystem::FindSequenceById(FTweenId Id) const
         return FTweenSequenceHandle();
     }
 
-    for (const TSharedPtr<FTweenSequence>& Seq : ActiveSequences)
+    if (FTweenSequence* const* Found = SequenceById.Find(Id))
     {
-        if (Seq.IsValid() && Seq->Id == Id)
+        const FTweenSequence* RawPtr = *Found;
+        if (RawPtr && ActiveSequences.IsValidIndex(RawPtr->ActiveIndex))
         {
-            return FTweenSequenceHandle(Seq);
+            const TSharedPtr<FTweenSequence>& Shared = ActiveSequences[RawPtr->ActiveIndex];
+            if (Shared.Get() == RawPtr)
+            {
+                return FTweenSequenceHandle(Shared);
+            }
         }
     }
     return FTweenSequenceHandle();
@@ -402,6 +458,11 @@ FTweenSequenceHandle UTweenSubsystem::FindSequenceById(FTweenId Id) const
 
 void UTweenSubsystem::Tick(float DeltaTime)
 {
+    if (ActiveTweens.IsEmpty() && ActiveSequences.IsEmpty())
+    {
+        return;
+    }
+
     TRACE_CPUPROFILER_EVENT_SCOPE(UTween_SubsystemTick);
     SCOPE_CYCLE_COUNTER(STAT_UTween_Tick);
 
@@ -477,25 +538,62 @@ void UTweenSubsystem::Tick(float DeltaTime)
             {
                 if (Tween)
                 {
+                    TweenById.Remove(Tween->Id);
                     RecycleTween(ActiveTweens[Index]);
                 }
                 ActiveTweens.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+                if (ActiveTweens.IsValidIndex(Index) && ActiveTweens[Index].IsValid())
+                {
+                    ActiveTweens[Index]->ActiveIndex = Index;
+                }
             }
         }
 
-        ActiveSequences.RemoveAll([this](const TSharedPtr<FTweenSequence>& Seq)
+        for (int32 Index = ActiveSequences.Num() - 1; Index >= 0; --Index)
+        {
+            FTweenSequence* Seq = ActiveSequences[Index].Get();
+            const bool bDead = !Seq || Seq->State == ETweenState::Killed || Seq->State == ETweenState::Completed;
+            if (bDead)
             {
-                const bool bDead = !Seq.IsValid() || Seq->State == ETweenState::Killed || Seq->State == ETweenState::Completed;
-                if (bDead && Seq.IsValid() && Seq->Tag.IsValid())
+                if (Seq)
                 {
-                    UnregisterSequenceTag(Seq->Tag, Seq.Get());
+                    SequenceById.Remove(Seq->Id);
+                    Seq->ActiveIndex = INDEX_NONE;
+                    if (Seq->Tag.IsValid())
+                    {
+                        UnregisterSequenceTag(Seq->Tag, Seq);
+                    }
+                    RecycleSequenceChildren(*Seq);
                 }
-                return bDead;
-            });
+                ActiveSequences.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+                if (ActiveSequences.IsValidIndex(Index) && ActiveSequences[Index].IsValid())
+                {
+                    ActiveSequences[Index]->ActiveIndex = Index;
+                }
+            }
+        }
     }
 
     SET_DWORD_STAT(STAT_UTween_ActiveTweens, ActiveTweens.Num());
     SET_DWORD_STAT(STAT_UTween_ActiveSequences, ActiveSequences.Num());
+}
+
+void UTweenSubsystem::RecycleSequenceChildren(FTweenSequence& Sequence)
+{
+    for (FSequenceAction& Action : Sequence.Actions)
+    {
+        if (Action.Type == ESequenceActionType::Tween && Action.TweenInstance.IsValid())
+        {
+            RecycleTween(Action.TweenInstance);
+            Action.TweenInstance.Reset();
+        }
+        else if (Action.Type == ESequenceActionType::SubSequence && Action.SubSequence.IsValid())
+        {
+            RecycleSequenceChildren(*Action.SubSequence);
+            Action.SubSequence.Reset();
+        }
+    }
+    Sequence.Actions.Reset();
 }
 
 void UTweenSubsystem::EmptyPools()
@@ -505,6 +603,8 @@ void UTweenSubsystem::EmptyPools()
     VectorPool.Reset();
     RotatorPool.Reset();
     LinearColorPool.Reset();
+    TweenById.Reset();
+    SequenceById.Reset();
     TaggedTweens.Reset();
     TaggedSequences.Reset();
 }

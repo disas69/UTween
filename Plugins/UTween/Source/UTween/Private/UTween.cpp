@@ -54,6 +54,14 @@ UTweenSubsystem* UTween::GetSubsystem(const UObject* WorldContext)
             {
                 return Sub;
             }
+            if (UTweenSubsystem* Cached = UTweenSubsystem::GetLastActiveSubsystem())
+            {
+                if (!Cached->IsTemplate() && IsValid(Cached) &&
+                    (Cached->GetOuter() == TargetGI || Cached->GetGameInstance() == TargetGI))
+                {
+                    return Cached;
+                }
+            }
             for (TObjectIterator<UTweenSubsystem> It; It; ++It)
             {
                 if (It->IsTemplate() || !IsValid(*It))
@@ -131,7 +139,7 @@ template <typename T>
 FTweenHandle UTween::CreateValueTween(
     const UObject* WorldContext,
     const T& From, const T& To, float Duration,
-    TFunction<void(const T&)> OnUpdate,
+    TFunction<void(TTweenApplyArg<T>)> OnUpdate,
     const TCHAR* MethodName)
 {
     UTweenSubsystem* Subsystem = GetSubsystem(WorldContext);
@@ -163,15 +171,7 @@ FTweenHandle UTween::Value(float From, float To, float Duration,
 FTweenHandle UTween::Value(const UObject* WorldContext, float From, float To, float Duration,
     TFunction<void(float)> OnUpdate)
 {
-    // Adapt scalar callback to the (const T&) signature used by CreateValueTween.
-    TFunction<void(const float&)> Wrapped = [Cb = MoveTemp(OnUpdate)](const float& V)
-    {
-        if (Cb)
-        {
-            Cb(V);
-        }
-    };
-    return CreateValueTween<float>(WorldContext, From, To, Duration, MoveTemp(Wrapped), TEXT("Value<float>"));
+    return CreateValueTween<float>(WorldContext, From, To, Duration, MoveTemp(OnUpdate), TEXT("Value<float>"));
 }
 
 FTweenHandle UTween::Value(const FVector2D& From, const FVector2D& To, float Duration,
@@ -228,7 +228,7 @@ FTweenHandle UTween::CreateTargetTween(
     const TValue& To,
     float Duration,
     TFunction<TValue()> Getter,
-    TFunction<void(const TValue&)> Apply,
+    TFunction<void(TTweenApplyArg<TValue>)> Apply,
     TFunction<TValue(const TValue&, const TValue&, float)> Lerp,
     const TCHAR* MethodName)
 {
@@ -325,7 +325,7 @@ FTweenHandle UTween::WidgetRotation(UWidget* Target, float To, float Duration)
             }
             return 0.f;
         },
-        [Weak](const float& V)
+        [Weak](float V)
         {
             if (UWidget* W = Weak.Get())
             {
@@ -349,7 +349,7 @@ FTweenHandle UTween::WidgetOpacity(UWidget* Target, float To, float Duration)
             }
             return 1.f;
         },
-        [Weak](const float& V)
+        [Weak](float V)
         {
             if (UWidget* W = Weak.Get())
             {
@@ -969,7 +969,7 @@ FTweenHandle UTween::MaterialScalar(UMaterialInstanceDynamic* Target, FName Para
             }
             return 0.f;
         },
-        [Weak, CapturedName](const float& V)
+        [Weak, CapturedName](float V)
         {
             if (UMaterialInstanceDynamic* MID = Weak.Get())
             {

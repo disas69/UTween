@@ -1321,4 +1321,157 @@ bool FUTweenPunchDelayedAndCustomCallbacksTest::RunTest(const FString& Parameter
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenSequenceChildPoolingAndIdLookupTest,
+    "UTween.Subsystem.SequenceChildPoolingAndFastIdLookup", UTWEEN_TEST_FLAGS)
+
+bool FUTweenSequenceChildPoolingAndIdLookupTest::RunTest(const FString& Parameters)
+{
+    UGameInstance* GI = NewObject<UGameInstance>();
+    UTweenSubsystem* Subsystem = NewObject<UTweenSubsystem>(GI);
+    TestNotNull(TEXT("Subsystem created"), Subsystem);
+
+    float V = 0.f;
+    FTweenHandle ChildHandle = UTween::Value(GI, 0.f, 100.f, 0.5f, [&V](float InV) { V = InV; });
+    FTweenInstanceBase* OriginalPtr = ChildHandle.GetInstance().Get();
+    TestNotNull(TEXT("Child instance allocated"), OriginalPtr);
+
+    // Verify O(1) lookup while registered as standalone tween
+    TestTrue(TEXT("FindTweenById resolves registered tween"), Subsystem->FindTweenById(ChildHandle.GetId()).IsValid());
+
+    FTweenSequenceHandle SeqHandle = UTween::Sequence(GI);
+    TestTrue(TEXT("FindSequenceById resolves registered sequence"), Subsystem->FindSequenceById(SeqHandle.GetId()).IsValid());
+
+    SeqHandle.Append(ChildHandle);
+    TestFalse(TEXT("Detached child tween removed from standalone ID map"), Subsystem->FindTweenById(ChildHandle.GetId()).IsValid());
+
+    // Release test-local shared pointers via handle reset so pool is sole owner after completion
+    ChildHandle = FTweenHandle();
+
+    // Tick sequence to completion (0.5s), which recycles child tween back into FloatPool
+    Subsystem->Tick(0.5f);
+    TestEqual(TEXT("Child tween reached 100"), V, 100.f, FloatTolerance);
+    TestFalse(TEXT("Completed sequence removed from SequenceById"), Subsystem->FindSequenceById(SeqHandle.GetId()).IsValid());
+
+    // Next AcquireTween<float>() should return the recycled instance pointer from FloatPool
+    TSharedPtr<TTweenInstance<float>> Reacquired = Subsystem->AcquireTween<float>();
+    TestEqual(TEXT("Sequence child tween was recycled into FloatPool"), static_cast<FTweenInstanceBase*>(Reacquired.Get()), OriginalPtr);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUTweenPerformanceBenchmarkTest,
+    "UTween.Benchmark.ThroughputSuite", UTWEEN_TEST_FLAGS)
+
+bool FUTweenPerformanceBenchmarkTest::RunTest(const FString& Parameters)
+{
+    UGameInstance* GI = NewObject<UGameInstance>();
+    UTweenSubsystem* Subsystem = NewObject<UTweenSubsystem>(GI);
+    TestNotNull(TEXT("Subsystem created"), Subsystem);
+
+    constexpr int32 NumTweens = 10000;
+    constexpr int32 NumFrames = 100;
+
+    float DummyFloat = 0.f;
+    FVector DummyVec = FVector::ZeroVector;
+    FRotator DummyRot = FRotator::ZeroRotator;
+
+    TArray<FTweenId> Ids;
+    Ids.Reserve(NumTweens);
+
+    // 1. Cold creation of 10,000 float tweens
+    const double ColdCreateStart = FPlatformTime::Seconds();
+    for (int32 i = 0; i < NumTweens; ++i)
+    {
+        FTweenHandle H = UTween::Value(GI, 0.f, 100.f, 1.0f, [&DummyFloat](float V) { DummyFloat = V; })
+            .SetEase(ETweenEase::OutQuad);
+        Ids.Add(H.GetId());
+    }
+    const double ColdCreateMs = (FPlatformTime::Seconds() - ColdCreateStart) * 1000.0;
+
+    // 2. 10,000 ID lookups
+    const double LookupStart = FPlatformTime::Seconds();
+    int32 ValidCount = 0;
+    for (int32 i = 0; i < NumTweens; ++i)
+    {
+        if (Subsystem->FindTweenById(Ids[i]).IsValid())
+        {
+            ++ValidCount;
+        }
+    }
+    const double LookupMs = (FPlatformTime::Seconds() - LookupStart) * 1000.0;
+    TestEqual(TEXT("All 10,000 IDs resolved"), ValidCount, NumTweens);
+
+    // 3. Tick 10,000 active float tweens for 100 frames (1,000,000 tween evaluations)
+    const double FloatTickStart = FPlatformTime::Seconds();
+    for (int32 Frame = 0; Frame < NumFrames; ++Frame)
+    {
+        Subsystem->Tick(0.005f);
+    }
+    const double FloatTickTotalMs = (FPlatformTime::Seconds() - FloatTickStart) * 1000.0;
+
+    // 4. Complete & sweep/recycle all 10,000 float tweens
+    const double SweepStart = FPlatformTime::Seconds();
+    Subsystem->Tick(1.0f);
+    const double SweepMs = (FPlatformTime::Seconds() - SweepStart) * 1000.0;
+    TestEqual(TEXT("All float tweens swept"), Subsystem->GetActiveTweenCount(), 0);
+
+    // 5. Warm (pooled) creation of 10,000 float tweens
+    const double WarmCreateStart = FPlatformTime::Seconds();
+    for (int32 i = 0; i < NumTweens; ++i)
+    {
+        UTween::Value(GI, 0.f, 100.f, 1.0f, [&DummyFloat](float V) { DummyFloat = V; });
+    }
+    const double WarmCreateMs = (FPlatformTime::Seconds() - WarmCreateStart) * 1000.0;
+    Subsystem->KillAll();
+
+    // 6. Rotator Slerp benchmark: 10,000 rotator tweens ticked for 100 frames
+    for (int32 i = 0; i < NumTweens; ++i)
+    {
+        UTween::Value(GI, FRotator(0.f, 0.f, 0.f), FRotator(45.f, 120.f, 30.f), 1.0f,
+            [&DummyRot](const FRotator& R) { DummyRot = R; });
+    }
+    const double RotTickStart = FPlatformTime::Seconds();
+    for (int32 Frame = 0; Frame < NumFrames; ++Frame)
+    {
+        Subsystem->Tick(0.005f);
+    }
+    const double RotTickTotalMs = (FPlatformTime::Seconds() - RotTickStart) * 1000.0;
+    Subsystem->KillAll();
+
+    // 7. Sequence build + tick benchmark: 1,000 sequences x 5 tweens = 5,000 sequenced tweens
+    constexpr int32 NumSeqs = 1000;
+    constexpr int32 TweensPerSeq = 5;
+    const double SeqBuildStart = FPlatformTime::Seconds();
+    for (int32 s = 0; s < NumSeqs; ++s)
+    {
+        FTweenSequenceHandle Seq = UTween::Sequence(GI);
+        for (int32 t = 0; t < TweensPerSeq; ++t)
+        {
+            Seq.Append(UTween::Value(GI, 0.f, 100.f, 0.2f, [&DummyFloat](float V) { DummyFloat = V; }));
+        }
+    }
+    const double SeqBuildMs = (FPlatformTime::Seconds() - SeqBuildStart) * 1000.0;
+
+    const double SeqTickStart = FPlatformTime::Seconds();
+    for (int32 Frame = 0; Frame < NumFrames; ++Frame)
+    {
+        Subsystem->Tick(0.005f);
+    }
+    const double SeqTickTotalMs = (FPlatformTime::Seconds() - SeqTickStart) * 1000.0;
+    Subsystem->KillAll();
+
+    UE_LOG(LogUTween, Display,
+        TEXT("[UTween Benchmark] ColdCreate(10k)=%.3fms | WarmCreate(10k)=%.3fms | Lookup(10k)=%.3fms | FloatTick(10k/frame)=%.3fms | RotTick(10k/frame)=%.3fms | Sweep(10k)=%.3fms | SeqBuild(1k*5)=%.3fms | SeqTick(1k*5/frame)=%.3fms"),
+        ColdCreateMs,
+        WarmCreateMs,
+        LookupMs,
+        FloatTickTotalMs / NumFrames,
+        RotTickTotalMs / NumFrames,
+        SweepMs,
+        SeqBuildMs,
+        SeqTickTotalMs / NumFrames);
+
+    return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -137,6 +137,7 @@ void FTweenSequence::Tick(float DeltaTime)
 
     const float PrevCursor = Cursor;
     Cursor += DeltaTime;
+    bool bAllComplete = true;
 
     for (FSequenceAction& Action : Actions)
     {
@@ -228,9 +229,14 @@ void FTweenSequence::Tick(float DeltaTime)
         {
             Action.bComplete = true;
         }
+
+        if (!Action.bComplete)
+        {
+            bAllComplete = false;
+        }
     }
 
-    if (AllActionsComplete())
+    if (bAllComplete)
     {
         HandleCompletion();
     }
