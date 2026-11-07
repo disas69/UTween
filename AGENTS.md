@@ -25,6 +25,29 @@ It provides a fluent C++ API, convenience macros, and Blueprint function librari
 UTween/
 ├── .agents/
 │   └── mcp_config.json                         <-- Canonical Unreal Engine MCP configuration
+├── Content/
+│   ├── TweenDemo/                              <-- Standalone TweenDemo showcase assets (C++ & Blueprint)
+│   │   ├── Maps/
+│   │   │   ├── TweenDemo.umap                  <-- 10 placed studio cubes driven by C++ (AUTweenDemoManager)
+│   │   │   └── TweenDemoBlueprint.umap         <-- 10 placed studio cubes driven by Blueprint (BP_TweenDemo_Blueprint)
+│   │   ├── Blueprints/
+│   │   │   ├── BP_TweenDemo.uasset             <-- C++ showcase manager actor
+│   │   │   └── BP_TweenDemo_Blueprint.uasset   <-- Blueprint showcase manager actor (Demo0_Bounce .. Demo9_NestedTween)
+│   │   ├── Meshes/
+│   │   │   └── SM_TweenDemo_Cube.uasset        <-- Smooth-beveled studio cube mesh
+│   │   └── Materials/
+│   │       ├── M_TweenDemoBase.uasset          <-- Studio base material for TweenDemo
+│   │       ├── M_TweenDemo_FloorGrid.uasset    <-- Checkerboard grid floor material
+│   │       ├── MI_TweenDemo_FloorGrid.uasset   <-- Checkerboard grid floor instance
+│   │       ├── MI_TweenDemo_Cube.uasset        <-- Default cube material instance
+│   │       └── MI_TweenDemo_Cube_00..09.uasset <-- Per-cube vibrant material instances
+│   └── GameFeel/                               <-- Standalone GameFeel combat sandbox assets
+│       ├── Maps/
+│       │   └── GameFeelMap.umap                <-- Top-down combat sandbox map
+│       ├── Blueprints/                         <-- Player, Enemy, SlashArc, ImpactSparks, DamageNumber, GameMode BPs
+│       ├── Input/                              <-- Enhanced Input actions and mapping context
+│       ├── Meshes/                             <-- Capsule, Sword, BroadSword, and SlashArc meshes
+│       └── Materials/                          <-- Studio character, weapon, VFX, dissolve, and floor materials
 ├── Plugins/
 │   └── UTween/                                 <-- Core Plugin (Standalone & Redistributable)
 │       ├── UTween.uplugin                      <-- Plugin descriptor (Runtime, Beta, EnabledByDefault)
@@ -62,18 +85,18 @@ UTween/
 │   │   ├── UTweenProject.h
 │   │   ├── UTweenProject.cpp
 │   │   ├── Examples/                           <-- Pure C++ & macro API usage examples
-│   │   │   ├── UTweenDemoManager.h/.cpp        <-- Demonstration actor spawning primitive shapes with 10 tween effects
+│   │   │   ├── UTweenDemoManager.h/.cpp        <-- Showcase manager driving 10 placed level cubes & world-space labels
 │   │   │   ├── UTweenFluentExample.h/.cpp      <-- Pure fluent C++ API examples
 │   │   │   └── UTweenMacrosExample.h/.cpp      <-- Macro API examples
 │   │   └── GameFeel/                           <-- Complete game-feel combat sandbox demo
 │   │       ├── GameFeelPlayerCharacter.h/.cpp  <-- Player with juice attack sequences, squash/stretch, and cam shake
-│   │       ├── GameFeelEnemyCharacter.h/.cpp   <-- Enemy with hit-stop, flash, knockback, and dissolve death sequence
-│   │       ├── GameFeelHUDWidget.h/.cpp        <-- Responsive UI with combo punch, health bar tween, and hurt vignettes
+│   │       ├── GameFeelEnemyCharacter.h/.cpp   <-- Enemy with hit-stop, flash, knockback, animated life bars, and dissolve
+│   │       ├── GameFeelHUDWidget.h/.cpp        <-- Responsive UI with diamond player hearts and hurt vignettes
 │   │       ├── GameFeelSlashArc.h/.cpp         <-- Sliced sword slash trail actor with scale/dissolve tweening
 │   │       ├── GameFeelImpactSparks.h/.cpp     <-- Directional spark burst FX with randomized outward tweens
-│   │       ├── GameFeelDamageNumber.h/.cpp     <-- Floating world damage counter with bounce curve & fade
+│   │       ├── GameFeelDamageNumber.h/.cpp     <-- Floating world damage counter (-20, -50) with pop & fade
 │   │       ├── GameFeelPlayerController.h/.cpp <-- Top-down input and mouse aiming
-│   │       └── GameFeelGameMode.h/.cpp         <-- Spawning, round management, and global combat orchestration
+│   │       └── GameFeelGameMode.h/.cpp         <-- Spawning, round management, and live polish toggle (T / Tab)
 │   ├── UTween.Target.cs                        <-- Target rules for standalone game
 │   └── UTweenEditor.Target.cs                  <-- Target rules for editor
 ├── Scripts/

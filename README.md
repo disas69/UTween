@@ -111,18 +111,29 @@ All core operations are exposed to Blueprints with identical semantics:
 
 ---
 
-## Included Demo: Game-Feel Combat Sandbox
+## Included Demos
 
-The project includes a top-down combat demo (`Source/UTweenProject/GameFeel/`) showcasing how UTween transforms raw gameplay mechanics into satisfying, responsive "game-feel" juice.
+The project includes two self-contained demo folders under `Content/` (`Content/TweenDemo/` and `Content/GameFeel/`):
+
+### 1. TweenDemo Showcase (`Content/TweenDemo/Maps/`)
+
+A visual gallery of 10 placed studio cubes (`Bounce`, `Spin`, `Scale Pulse`, `Sequence`, `Elastic Pop`, `Barrel Roll`, `Value Tween`, `Parallel`, `Combo Tween`, and `Nested Tween`) with floating world-space descriptions above each cube, provided in both **C++** and **Blueprint** implementations:
+
+- **`TweenDemo.umap` (C++ Example)**: Uses `BP_TweenDemo` (`AUTweenDemoManager` in `Source/UTweenProject/Examples/UTweenDemoManager.cpp`) to drive all 10 placed level cubes using the UTween C++ macro and fluent APIs.
+- **`TweenDemoBlueprint.umap` (Blueprint Example)**: Uses `BP_TweenDemo_Blueprint` (`/Game/TweenDemo/Blueprints/BP_TweenDemo_Blueprint`) with 10 dedicated Blueprint functions (`Demo0_Bounce` .. `Demo9_NestedTween`) to drive the 10 placed level cubes entirely via `UTweenBlueprintLibrary` Blueprint nodes.
+
+### 2. Game-Feel Combat Sandbox (`Content/GameFeel/Maps/GameFeelMap.umap`)
+
+A top-down combat sandbox (`Source/UTweenProject/GameFeel/`) showcasing how UTween transforms raw gameplay mechanics into satisfying, responsive "game-feel" juice.
 
 <!-- Demo Preview GIF Placeholder -->
 <!-- Add demo preview GIF here: ![GameFeel Combat Showcase](Docs/Images/gamefeel_showcase.gif) -->
 
-### Combat Mechanics & Tweens Demonstrated:
+#### Combat Mechanics & Tweens Demonstrated:
 - **Player Attack Sequence**: Anticipation wind-up, sword slash arc trail expansion, dynamic squash/stretch, and follow-through recovery.
-- **Hit Feedback**: Emissive damage flash on dynamic materials, directional knockback, and camera shake.
+- **Hit Feedback**: Emissive damage flash on dynamic materials, directional knockback, spark bursts, and camera shake.
 - **Hit-Stop Freeze**: Micro time-dilation pause on impactful weapon hits.
-- **UI & HUD**: Smooth health bar easing, punch animations on combo counters, and hurt vignette flashes.
+- **World-Space Feedback & HUD**: Animated enemy life bars with delayed damage trail, floating damage numbers, and hurt vignette flashes.
 
 Press **`T`** or **`Tab`** while playing to toggle polish on and off in real time to instantly feel the difference UTween makes.
 
