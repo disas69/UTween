@@ -362,7 +362,7 @@ void AUTweenDemoManager::Demo3_SlideSequence(AStaticMeshActor* Shape, const FVec
 
 void AUTweenDemoManager::Demo4_ElasticPop(AStaticMeshActor* Shape)
 {
-    UTWEEN_SCALE(Shape, FVector(0.f), FVector(1.f), 1.0f)
+    UTWEEN_SCALE(Shape, FVector(0.60f), FVector(1.15f), 1.0f)
         .SetEase(ETweenEase::OutElastic)
         .SetLoops(-1, ETweenLoopMode::Yoyo);
 }
@@ -429,11 +429,11 @@ void AUTweenDemoManager::Demo9_NestedShake(AStaticMeshActor* Shape, const FVecto
         .SetLoops(4, ETweenLoopMode::Restart);
 
     UTWEEN_SEQUENCE(Shape,
-        UTWEEN_SCALE(Shape, FVector(0.f), FVector(1.f), 0.4f).SetEase(ETweenEase::OutElastic),
+        UTWEEN_SCALE(Shape, FVector(0.55f), FVector(1.f), 0.4f).SetEase(ETweenEase::OutElastic),
         UTWEEN_WAIT(0.2f),
         UTWEEN_DO([Shake]() mutable { Shake.Play(); }),
         UTWEEN_WAIT(1.6f),
-        UTWEEN_SCALE(Shape, FVector(1.f), FVector(0.f), 0.3f).SetEase(ETweenEase::InBack),
+        UTWEEN_SCALE(Shape, FVector(1.f), FVector(0.55f), 0.3f).SetEase(ETweenEase::InBack),
         UTWEEN_WAIT(0.3f))
         .SetLoops(-1, ETweenLoopMode::Restart)
         .Play();

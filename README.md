@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Resources/UTween_Logo_Horizontal.png">
+    <img src="Resources/UTween_Logo_Horizontal.png" alt="UTween - Lightweight tweening framework for Unreal Engine 5" width="100%">
+  </picture>
+</p>
+
 # UTween
 
 Lightweight runtime tweening and game-feel animation framework for **Unreal Engine 5** (inspired by DOTween and Godot Tweens).
@@ -117,7 +124,11 @@ The project includes two self-contained demo folders under `Content/` (`Content/
 
 ### 1. TweenDemo Showcase (`Content/TweenDemo/Maps/`)
 
-A visual gallery of 10 placed studio cubes (`Bounce`, `Spin`, `Scale Pulse`, `Sequence`, `Elastic Pop`, `Barrel Roll`, `Value Tween`, `Parallel`, `Combo Tween`, and `Nested Tween`) with floating world-space descriptions above each cube, provided in both **C++** and **Blueprint** implementations:
+A visual gallery of 10 placed studio cubes (`Bounce`, `Spin`, `Scale Pulse`, `Sequence`, `Elastic Pop`, `Barrel Roll`, `Value Tween`, `Parallel`, `Combo Tween`, and `Nested Tween`), provided in both **C++** and **Blueprint** implementations:
+
+<p align="center">
+  <img src="Resources/tweendemo_showcase.gif" alt="TweenDemo Showcase" width="640">
+</p>
 
 - **`TweenDemo.umap` (C++ Example)**: Uses `BP_TweenDemo` (`AUTweenDemoManager` in `Source/UTweenProject/Examples/UTweenDemoManager.cpp`) to drive all 10 placed level cubes using the UTween C++ macro and fluent APIs.
 - **`TweenDemoBlueprint.umap` (Blueprint Example)**: Uses `BP_TweenDemo_Blueprint` (`/Game/TweenDemo/Blueprints/BP_TweenDemo_Blueprint`) with 10 dedicated Blueprint functions (`Demo0_Bounce` .. `Demo9_NestedTween`) to drive the 10 placed level cubes entirely via `UTweenBlueprintLibrary` Blueprint nodes.
@@ -126,8 +137,9 @@ A visual gallery of 10 placed studio cubes (`Bounce`, `Spin`, `Scale Pulse`, `Se
 
 A top-down combat sandbox (`Source/UTweenProject/GameFeel/`) showcasing how UTween transforms raw gameplay mechanics into satisfying, responsive "game-feel" juice.
 
-<!-- Demo Preview GIF Placeholder -->
-<!-- Add demo preview GIF here: ![GameFeel Combat Showcase](Docs/Images/gamefeel_showcase.gif) -->
+<p align="center">
+  <img src="Resources/gamefeel_showcase.gif" alt="GameFeel Combat Showcase" width="640">
+</p>
 
 #### Combat Mechanics & Tweens Demonstrated:
 - **Player Attack Sequence**: Anticipation wind-up, sword slash arc trail expansion, dynamic squash/stretch, and follow-through recovery.
