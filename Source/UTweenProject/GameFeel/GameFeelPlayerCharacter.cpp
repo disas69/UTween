@@ -201,9 +201,16 @@ void AGameFeelPlayerCharacter::BeginPlay()
 
     if (TopCapSphere && SwordPivot)
     {
+        if (!TopCapSphere->GetStaticMesh())
+        {
+            if (UStaticMesh* SphereMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")))
+            {
+                TopCapSphere->SetStaticMesh(SphereMesh);
+            }
+        }
         TopCapSphere->AttachToComponent(SwordPivot, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-        TopCapSphere->SetRelativeLocation(FVector(42.f, 0.f, 2.f));
-        TopCapSphere->SetRelativeScale3D(FVector(0.22f, 0.22f, 0.22f));
+        TopCapSphere->SetRelativeLocation(FVector(40.f, 0.f, 8.f));
+        TopCapSphere->SetRelativeScale3D(FVector(0.24f, 0.24f, 0.24f));
         TopCapSphere->SetVisibility(true);
         TopCapSphere->SetHiddenInGame(false);
         if (CachedHandMaterial)
@@ -218,8 +225,8 @@ void AGameFeelPlayerCharacter::BeginPlay()
 
     if (SwordMesh)
     {
-        SwordMesh->SetRelativeLocation(FVector(82.f, 0.f, 2.f));
-        SwordMesh->SetRelativeScale3D(FVector(0.72f, 0.40f, 0.08f));
+        SwordMesh->SetRelativeLocation(FVector(78.f, 0.f, 8.f));
+        SwordMesh->SetRelativeScale3D(FVector(0.74f, 0.42f, 0.08f));
         SwordDynamicMaterial = SwordMesh->CreateAndSetMaterialInstanceDynamic(0);
     }
 
@@ -880,47 +887,12 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
             CameraBoom->TargetArmLength = DefaultBoomLength;
             CameraBoom->SetRelativeRotation(FRotator(-48.f, 0.f, 0.f));
         }
-        if (BodyCylinder && CachedCapsuleMesh)
-        {
-            BodyCylinder->SetStaticMesh(CachedCapsuleMesh);
-            BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, -16.f));
-            BodyCylinder->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
-        }
-        if (TopCapSphere)
-        {
-            TopCapSphere->SetRelativeLocation(FVector(42.f, 0.f, 2.f));
-            TopCapSphere->SetRelativeScale3D(FVector(0.22f, 0.22f, 0.22f));
-            TopCapSphere->SetVisibility(true);
-            TopCapSphere->SetHiddenInGame(false);
-        }
-        if (SwordMesh)
-        {
-            if (CachedBroadSwordMesh)
-            {
-                SwordMesh->SetStaticMesh(CachedBroadSwordMesh);
-            }
-            SwordMesh->SetRelativeLocation(FVector(82.f, 0.f, 2.f));
-            SwordMesh->SetRelativeScale3D(FVector(0.72f, 0.40f, 0.08f));
-            if (!SwordDynamicMaterial)
-            {
-                SwordDynamicMaterial = SwordMesh->CreateAndSetMaterialInstanceDynamic(0);
-            }
-            else
-            {
-                SwordMesh->SetMaterial(0, SwordDynamicMaterial);
-            }
-            if (SwordDynamicMaterial)
-            {
-                SwordDynamicMaterial->SetVectorParameterValue(FName("BaseColor"), FLinearColor(1.0f, 0.62f, 0.12f, 1.0f));
-                SwordDynamicMaterial->SetVectorParameterValue(FName("EmissiveColor"), FLinearColor(5.0f, 2.3f, 0.35f, 1.0f));
-            }
-        }
     }
     else
     {
         CurrentCombo = 0;
         CameraTrauma = 0.f;
-        DefaultBoomLength = 1350.f;
+        DefaultBoomLength = 1520.f;
 
         AttackSequenceHandle.Kill();
         CameraZoomSequenceHandle.Kill();
@@ -941,49 +913,20 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
             VisualRoot->SetRelativeRotation(FRotator::ZeroRotator);
             VisualRoot->SetRelativeScale3D(FVector::OneVector);
         }
+        if (SwordMesh)
+        {
+            SwordMesh->SetRelativeScale3D(FVector(0.74f, 0.42f, 0.08f));
+        }
         if (TopDownCamera)
         {
-            TopDownCamera->FieldOfView = 52.f;
+            TopDownCamera->FieldOfView = 45.f;
             TopDownCamera->SetRelativeLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
         }
         if (CameraBoom)
         {
             CameraBoom->SocketOffset = FVector::ZeroVector;
             CameraBoom->TargetArmLength = DefaultBoomLength;
-            CameraBoom->SetRelativeRotation(FRotator(-52.f, 0.f, 0.f));
-        }
-        if (BodyCylinder && CachedCylinderMesh)
-        {
-            BodyCylinder->SetStaticMesh(CachedCylinderMesh);
-            BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, -10.f));
-            BodyCylinder->SetRelativeScale3D(FVector(0.68f, 0.68f, 0.62f));
-        }
-        if (TopCapSphere)
-        {
-            TopCapSphere->SetVisibility(false);
-            TopCapSphere->SetHiddenInGame(true);
-        }
-        if (SwordMesh)
-        {
-            if (CachedCubeMesh)
-            {
-                SwordMesh->SetStaticMesh(CachedCubeMesh);
-            }
-            SwordMesh->SetRelativeLocation(FVector(66.f, 0.f, 2.f));
-            SwordMesh->SetRelativeScale3D(FVector(0.70f, 0.16f, 0.05f));
-            if (!SwordDynamicMaterial)
-            {
-                SwordDynamicMaterial = SwordMesh->CreateAndSetMaterialInstanceDynamic(0);
-            }
-            else
-            {
-                SwordMesh->SetMaterial(0, SwordDynamicMaterial);
-            }
-            if (SwordDynamicMaterial)
-            {
-                SwordDynamicMaterial->SetVectorParameterValue(FName("BaseColor"), FLinearColor(0.90f, 0.90f, 0.94f, 1.0f));
-                SwordDynamicMaterial->SetVectorParameterValue(FName("EmissiveColor"), FLinearColor(0.0f, 0.0f, 0.0f, 1.0f));
-            }
+            CameraBoom->SetRelativeRotation(FRotator(-48.f, 0.f, 0.f));
         }
         if (SlashArcInstance && SlashArcInstance->ArcMesh)
         {
@@ -1006,21 +949,6 @@ void AGameFeelPlayerCharacter::SetPolishMode(bool bEnable)
                     Enemy->VisualRoot->SetRelativeLocation(FVector::ZeroVector);
                     Enemy->VisualRoot->SetRelativeRotation(FRotator::ZeroRotator);
                     Enemy->VisualRoot->SetRelativeScale3D(FVector::OneVector);
-                }
-                if (Enemy->BodyCylinder)
-                {
-                    if (bIsPolished && CachedCapsuleMesh)
-                    {
-                        Enemy->BodyCylinder->SetStaticMesh(CachedCapsuleMesh);
-                        Enemy->BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, -16.f));
-                        Enemy->BodyCylinder->SetRelativeScale3D(FVector(0.92f, 0.92f, 0.92f));
-                    }
-                    else if (!bIsPolished && CachedCylinderMesh)
-                    {
-                        Enemy->BodyCylinder->SetStaticMesh(CachedCylinderMesh);
-                        Enemy->BodyCylinder->SetRelativeLocation(FVector(0.f, 0.f, -10.f));
-                        Enemy->BodyCylinder->SetRelativeScale3D(FVector(0.64f, 0.64f, 0.58f));
-                    }
                 }
                 if (bIsPolished)
                 {
