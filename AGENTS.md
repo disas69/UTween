@@ -50,7 +50,7 @@ UTween/
 │       └── Materials/                          <-- Studio character, weapon, VFX, dissolve, and floor materials
 ├── Plugins/
 │   └── UTween/                                 <-- Core Plugin (Standalone & Redistributable)
-│       ├── UTween.uplugin                      <-- Plugin descriptor (Runtime, Beta, EnabledByDefault)
+│       ├── UTween.uplugin                      <-- Plugin descriptor (Runtime, EnabledByDefault)
 │       └── Source/UTween/
 │           ├── UTween.Build.cs                 <-- Module rules (Core, CoreUObject, Engine, UMG, Slate, SlateCore)
 │           ├── Public/

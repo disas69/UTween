@@ -8,7 +8,7 @@
 	"CreatedBy": "",
 	"EnabledByDefault": true,
 	"CanContainContent": false,
-	"IsBetaVersion": true,
+	"IsBetaVersion": false,
 	"Modules": [
 		{
 			"Name": "UTween",
