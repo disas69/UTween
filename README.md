@@ -113,7 +113,7 @@ All core operations are exposed to Blueprints with identical semantics:
 
 ## Included Demo: Game-Feel Combat Sandbox
 
-The host project includes a complete top-down combat sandbox (`Source/UTweenProject/GameFeel/`) showcasing how UTween transforms raw gameplay mechanics into satisfying, responsive "game-feel" juice.
+The project includes a top-down combat demo (`Source/UTweenProject/GameFeel/`) showcasing how UTween transforms raw gameplay mechanics into satisfying, responsive "game-feel" juice.
 
 <!-- Demo Preview GIF Placeholder -->
 <!-- Add demo preview GIF here: ![GameFeel Combat Showcase](Docs/Images/gamefeel_showcase.gif) -->
@@ -122,11 +122,9 @@ The host project includes a complete top-down combat sandbox (`Source/UTweenProj
 - **Player Attack Sequence**: Anticipation wind-up, sword slash arc trail expansion, dynamic squash/stretch, and follow-through recovery.
 - **Hit Feedback**: Emissive damage flash on dynamic materials, directional knockback, and camera shake.
 - **Hit-Stop Freeze**: Micro time-dilation pause on impactful weapon hits.
-- **VFX & Juice**: Directional spark bursts with randomized outward tweens, bouncing 3D world damage counters, and enemy dissolve death sequence.
 - **UI & HUD**: Smooth health bar easing, punch animations on combo counters, and hurt vignette flashes.
 
-### Real-Time A/B Polish Toggle:
-Press **`P`**, **`Tab`**, or **`T`** (or Gamepad Top Button) while playing to toggle polish on and off in real time to instantly feel the difference UTween makes.
+Press **`T`** or **`Tab`** while playing to toggle polish on and off in real time to instantly feel the difference UTween makes.
 
 <!-- A/B Comparison GIF Placeholder -->
 <!-- Add A/B comparison GIF here: ![Polish Toggle Comparison](Docs/Images/polish_comparison.gif) -->
@@ -135,7 +133,7 @@ Press **`P`**, **`Tab`**, or **`T`** (or Gamepad Top Button) while playing to to
 
 ## Performance & Benchmarks
 
-UTween is engineered for high throughput and zero allocations in steady state:
+UTween is made for high throughput and zero allocations in steady state:
 - **Easing Evaluations**: ~150-250 million ops/second.
 - **Tick Throughput**: ~0.02 to 0.05 microseconds per tween per frame.
 - **Tag Filtering**: $O(1)$ amortized lookup table (`TagToTweenMap`) for rapid tag killing/pausing across 10,000+ active instances.
