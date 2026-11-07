@@ -7,6 +7,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -62,42 +63,52 @@ void AUTweenDemoManager::BeginPlay()
 {
     Super::BeginPlay();
 
-    if (UStaticMesh* StudioCube = LoadObject<UStaticMesh>(
-            nullptr, TEXT("/Game/GameFeel/Meshes/SM_TweenDemo_Cube.SM_TweenDemo_Cube")))
+    UWorld* World = GetWorld();
+    if (!World)
     {
-        if (!ShapeMesh || ShapeMesh->GetPathName().Contains(TEXT("BasicShapes")))
-        {
-            ShapeMesh = StudioCube;
-        }
-    }
-
-    if (UMaterialInterface* StudioMat = LoadObject<UMaterialInterface>(
-            nullptr, TEXT("/Game/GameFeel/Materials/MI_TweenDemo_Cube.MI_TweenDemo_Cube")))
-    {
-        if (!ShapeMaterial || ShapeMaterial->GetPathName().Contains(TEXT("BasicShapeMaterial")))
-        {
-            ShapeMaterial = StudioMat;
-        }
-    }
-
-    if (!ShapeMesh)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("AUTweenDemoManager: ShapeMesh not set, aborting demo."));
         return;
     }
 
+    // Collect the placed cube actors from the level (tagged DemoCube_0 .. DemoCube_9)
     SpawnedActors.Reset();
-    SpawnedActors.Reserve(NumShapes);
+    SpawnedActors.SetNumZeroed(NumShapes);
+
+    int32 FoundCount = 0;
+    for (TActorIterator<AStaticMeshActor> It(World); It; ++It)
+    {
+        AStaticMeshActor* Candidate = *It;
+        if (!Candidate)
+        {
+            continue;
+        }
+
+        for (int32 i = 0; i < NumShapes; ++i)
+        {
+            const FName ExpectedTag(*FString::Printf(TEXT("DemoCube_%d"), i));
+            if (Candidate->ActorHasTag(ExpectedTag))
+            {
+                Candidate->SetMobility(EComponentMobility::Movable);
+                SpawnedActors[i] = Candidate;
+                ++FoundCount;
+                break;
+            }
+        }
+    }
+
     SpawnedLabels.Reset();
-    SpawnedLabels.Reserve(NumShapes);
+    SpawnedLabels.SetNumZeroed(NumShapes);
+
+    const bool bUseBlueprintTweens = ActorHasTag(TEXT("UseBlueprintTweens"));
 
     for (int32 i = 0; i < NumShapes; ++i)
     {
-        if (AStaticMeshActor* Shape = SpawnShape(i))
+        if (AStaticMeshActor* Shape = SpawnedActors[i])
         {
-            SpawnedActors.Add(Shape);
-            SpawnedLabels.Add(SpawnLabelForShape(i, Shape));
-            StartAnimationFor(i, Shape);
+            SpawnedLabels[i] = SpawnLabelForShape(i, Shape);
+            if (!bUseBlueprintTweens)
+            {
+                StartAnimationFor(i, Shape);
+            }
         }
     }
 }
@@ -106,7 +117,7 @@ void AUTweenDemoManager::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
-    FRotator CamRot(-34.f, 0.f, 0.f);
+    FRotator CamRot(-33.f, 0.f, 0.f);
     if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
     {
         if (PC->PlayerCameraManager)
@@ -204,65 +215,7 @@ void AUTweenDemoManager::GetDemoText(int32 Index, FString& OutTitle, FString& Ou
 
 AStaticMeshActor* AUTweenDemoManager::SpawnShape(int32 Index)
 {
-    UWorld* World = GetWorld();
-    if (!World)
-    {
-        return nullptr;
-    }
-
-    const int32 Columns = 5;
-    const int32 Row = Index / Columns;
-    const int32 Col = Index % Columns;
-
-    const FVector RightDir = LineDirection.IsNearlyZero() ? FVector(0.f, 1.f, 0.f) : LineDirection.GetSafeNormal();
-    const FVector ForwardDir = FVector::CrossProduct(RightDir, FVector::UpVector).GetSafeNormal();
-
-    const float ColOffset = (static_cast<float>(Col) - 2.0f) * 270.f;
-    const float RowOffset = static_cast<float>(Row) * 480.f;
-    const FVector BaseOrigin(60.f, 0.f, 58.f);
-    const FVector Location = BaseOrigin + ForwardDir * RowOffset + RightDir * ColOffset;
-    const FTransform SpawnTransform(FRotator::ZeroRotator, Location);
-
-    FActorSpawnParameters Params;
-    Params.Owner = this;
-    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-    AStaticMeshActor* Shape = World->SpawnActorDeferred<AStaticMeshActor>(
-        AStaticMeshActor::StaticClass(), SpawnTransform, this);
-    if (!Shape)
-    {
-        return nullptr;
-    }
-
-    Shape->SetMobility(EComponentMobility::Movable);
-
-    if (UStaticMeshComponent* SMC = Shape->GetStaticMeshComponent())
-    {
-        SMC->SetStaticMesh(ShapeMesh);
-        if (ShapeMaterial)
-        {
-            if (UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(ShapeMaterial, Shape))
-            {
-                const FLinearColor Color = GetDemoColor(Index);
-                MID->SetVectorParameterValue(TEXT("BaseColor"), Color);
-                MID->SetVectorParameterValue(TEXT("EmissiveColor"), Color * 0.14f);
-                MID->SetScalarParameterValue(TEXT("Roughness"), 0.24f);
-                SMC->SetMaterial(0, MID);
-            }
-            else
-            {
-                SMC->SetMaterial(0, ShapeMaterial);
-            }
-        }
-        SMC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    }
-
-#if WITH_EDITOR
-    Shape->SetActorLabel(FString::Printf(TEXT("UTweenDemoShape_%02d"), Index));
-#endif
-
-    Shape->FinishSpawning(SpawnTransform);
-    return Shape;
+    return SpawnedActors.IsValidIndex(Index) ? SpawnedActors[Index] : nullptr;
 }
 
 UWidgetComponent* AUTweenDemoManager::SpawnLabelForShape(int32 Index, AStaticMeshActor* Shape)
@@ -295,7 +248,7 @@ UWidgetComponent* AUTweenDemoManager::SpawnLabelForShape(int32 Index, AStaticMes
     LabelComp->RegisterComponent();
 
     LabelComp->SetWorldLocation(Shape->GetActorLocation() + FVector(0.f, 0.f, 94.f));
-    LabelComp->SetWorldRotation(FRotator(34.f, 180.f, 0.f));
+    LabelComp->SetWorldRotation(FRotator(33.f, 180.f, 0.f));
     LabelComp->SetWorldScale3D(FVector(0.45f, 0.45f, 0.45f));
 
     FString TitleStr;
