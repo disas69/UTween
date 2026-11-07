@@ -27,7 +27,7 @@ AUTweenDemoManager::AUTweenDemoManager()
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 
     static ConstructorHelpers::FObjectFinder<UStaticMesh> StudioCubeFinder(
-        TEXT("/Game/GameFeel/Meshes/SM_TweenDemo_Cube.SM_TweenDemo_Cube"));
+        TEXT("/Game/TweenDemo/Meshes/SM_TweenDemo_Cube.SM_TweenDemo_Cube"));
     if (StudioCubeFinder.Succeeded())
     {
         ShapeMesh = StudioCubeFinder.Object;
@@ -43,7 +43,7 @@ AUTweenDemoManager::AUTweenDemoManager()
     }
 
     static ConstructorHelpers::FObjectFinder<UMaterialInterface> StudioMatFinder(
-        TEXT("/Game/GameFeel/Materials/MI_TweenDemo_Cube.MI_TweenDemo_Cube"));
+        TEXT("/Game/TweenDemo/Materials/MI_TweenDemo_Cube.MI_TweenDemo_Cube"));
     if (StudioMatFinder.Succeeded())
     {
         ShapeMaterial = StudioMatFinder.Object;
