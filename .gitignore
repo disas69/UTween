@@ -78,3 +78,6 @@ DerivedDataCache/*
 # Developer and collection content
 Content/Developers/*
 Content/Collections/*
+
+# Packaged plugin releases
+Releases/*

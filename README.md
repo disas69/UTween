@@ -28,7 +28,7 @@ UTween provides a fluent C++ API, convenience macros, and Blueprint nodes to smo
 
 ## Installation
 
-1. Copy or clone the `Plugins/UTween` directory into your project's `Plugins/` folder:
+1. Download `UTween-vX.Y.Z-Source.zip` from **GitHub Releases** (or copy the `Plugins/UTween` directory from this repository) and extract it into your project's `Plugins/` folder:
    ```text
    YourProject/
    └── Plugins/
